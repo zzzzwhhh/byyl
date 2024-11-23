@@ -35,11 +35,10 @@ basicType: T_INT;
 varDef: T_ID;
 
 // 目前语句支持return和赋值语句
-statement:
-	T_RETURN expr T_SEMICOLON			# returnStatement
-	| lVal T_ASSIGN expr T_SEMICOLON	# assignStatement
-	| block								# blockStatement
-	| expr? T_SEMICOLON					# expressionStatement;
+statement: T_RETURN expr T_SEMICOLON           # returnStatement
+	| lVal T_ASSIGN expr T_SEMICOLON       # assignStatement
+	| block	                               # blockStatement
+	| expr? T_SEMICOLON                    # expressionStatement;
 
 // 表达式文法 expr : AddExp 表达式目前只支持加法与减法运算
 expr: addExp;
@@ -69,6 +68,7 @@ T_R_PAREN: ')';
 T_SEMICOLON: ';';
 T_L_BRACE: '{';
 T_R_BRACE: '}';
+
 T_ASSIGN: '=';
 T_COMMA: ',';
 

@@ -1,13 +1,19 @@
-﻿/**
- * @file AST.h
- * @author zenglj (zenglj@nwpu.edu.cn)
- * @brief 抽象语法树AST管理的源文件
- * @version 0.1
- * @date 2023-09-24
- *
- * @copyright Copyright (c) 2023
- *
- */
+﻿///
+/// @file AST.h
+/// @brief 抽象语法树AST管理的头文件
+/// @author zenglj (zenglj@live.com)
+/// @version 1.1
+/// @date 2024-11-23
+///
+/// @copyright Copyright (c) 2024
+///
+/// @par 修改日志:
+/// <table>
+/// <tr><th>Date       <th>Version <th>Author  <th>Description
+/// <tr><td>2024-11-21 <td>1.0     <td>zenglj  <td>新做
+/// <tr><td>2024-11-23 <td>1.1     <td>zenglj  <td>表达式版增强
+/// </table>
+///
 #pragma once
 
 #include <cstdint>
@@ -40,23 +46,9 @@ enum class ast_operator_type : int {
     AST_OP_LEAF_TYPE,
 
     /* 以下为AST的内部节点，含根节点 */
-    /// @brief 二元运算符+
-    AST_OP_ADD,
 
-    /// @brief 二元运算符*
-    AST_OP_SUB, //
-
-    /// @brief 多个语句组成的块运算符，也称为复合语句
-    AST_OP_BLOCK,
-
-    /// @brief 符合语句，也就是语句块，两个名字一个运算符
-    AST_OP_COMPOUNDSTMT = AST_OP_BLOCK,
-
-    /// @brief 赋值语句运算符
-    AST_OP_ASSIGN,
-
-    /// @brief return语句运算符
-    AST_OP_RETURN,
+    /// @brief 文件编译单元运算符，可包含函数定义、语句块等孩子
+    AST_OP_COMPILE_UNIT,
 
     /// @brief 函数定义运算符，函数名和返回值类型作为节点的属性，自左到右孩子：AST_OP_FUNC_FORMAL_PARAMS、AST_OP_BLOCK
     AST_OP_FUNC_DEF,
@@ -73,14 +65,29 @@ enum class ast_operator_type : int {
     /// @brief 实际参数列表运算符，可包含多个表达式AST_OP_EXPR
     AST_OP_FUNC_REAL_PARAMS,
 
-    /// @brief 文件编译单元运算符，可包含函数定义、语句块等孩子
-    AST_OP_COMPILE_UNIT,
+    /// @brief 多个语句组成的块运算符，也称为复合语句
+    AST_OP_BLOCK,
+
+    /// @brief 符合语句，也就是语句块，两个名字一个运算符
+    AST_OP_COMPOUNDSTMT = AST_OP_BLOCK,
+
+    /// @brief return语句运算符
+    AST_OP_RETURN,
+
+    /// @brief 赋值语句运算符
+    AST_OP_ASSIGN,
 
     /// @brief 变量声明语句
     AST_OP_DECL_STMT,
 
     /// @brief 变量声明
     AST_OP_VAR_DECL,
+
+    /// @brief 二元运算符+
+    AST_OP_ADD,
+
+    /// @brief 二元运算符*
+    AST_OP_SUB, //
 
     // TODO 抽象语法树其它内部节点运算符追加
 

@@ -1,13 +1,19 @@
-/**
- * @file RecursiveDescentParser.cpp
- * @author zenglj (zenglj@nwpu.edu.cn)
- * @brief 递归下降分析法实现的语法分析后产生抽象语法树的实现
- * @version 0.1
- * @date 2024-01-24
- *
- * @copyright Copyright (c) 2024
- *
- */
+///
+/// @file RecursiveDescentParser.cpp
+/// @brief 递归下降分析法实现的语法分析后产生抽象语法树的实现
+/// @author zenglj (zenglj@live.com)
+/// @version 1.1
+/// @date 2024-11-23
+///
+/// @copyright Copyright (c) 2024
+///
+/// @par 修改日志:
+/// <table>
+/// <tr><th>Date       <th>Version <th>Author  <th>Description
+/// <tr><td>2024-11-21 <td>1.0     <td>zenglj  <td>新做
+/// <tr><td>2024-11-23 <td>1.1     <td>zenglj  <td>表达式版增强
+/// </table>
+///
 #include <stdarg.h>
 
 #include "AST.h"
@@ -27,11 +33,20 @@ static RDTokenType lookaheadTag = RDTokenType::T_EMPTY;
 static ast_node * Block();
 static ast_node * expr();
 
-// 定义两个宏，用于判断是否是对应的Token
+///
+/// @brief 继续检查LookAhead指向的记号是否是T，用于符号的FIRST集合或Follow集合判断
+///
 #define _(T) || (lookaheadTag == T)
+
+///
+/// @brief 第一个检查LookAhead指向的记号是否属于C，用于符号的FIRST集合或Follow集合判断
+/// 如判断是否是T_ID，或者T_INT，可结合F和_两个宏来实现，即F(T_ID) _(T_INT)
+///
 #define F(C) (lookaheadTag == C)
 
+///
 /// @brief lookahead指向下一个Token
+///
 static void advance()
 {
     lookaheadTag = (RDTokenType) rd_flex();
@@ -40,10 +55,9 @@ static void advance()
 ///
 /// @brief flag若匹配则跳过Token，使得LookAhead指向下一个Token
 /// @param tag 是否匹配指定的Tag
-/// @param flag 若未true则获取下一个Token
 /// @return true：匹配，false：未匹配
 ///
-static bool match(RDTokenType tag, bool flag = true)
+static bool match(RDTokenType tag)
 {
     bool result = false;
 
@@ -51,10 +65,8 @@ static bool match(RDTokenType tag, bool flag = true)
 
         result = true;
 
-        // 若匹配，则向前获取下一个Token
-        if (flag) {
-            advance();
-        }
+        // 匹配，则向前获取下一个Token
+        advance();
     }
 
     return result;
@@ -159,7 +171,15 @@ static ast_node * unaryExp()
 {
     ast_node * node = nullptr;
 
-    if (match(T_L_PAREN)) {
+    if (F(T_DIGIT)) {
+        // 无符号整数
+
+        node = ast_node::New(rd_lval.integer_num);
+
+        // 跳过当前记号，指向下一个记号
+        advance();
+
+    } else if (match(T_L_PAREN)) {
         // 括号表达式
 
         // 括号内表达式识别
@@ -168,14 +188,6 @@ static ast_node * unaryExp()
         if (!match(T_R_PAREN)) {
             semerror("缺少右括号");
         }
-    } else if (F(T_DIGIT)) {
-        // 无符号整数
-
-        node = ast_node::New(rd_lval.integer_num);
-
-        // 跳过当前记号，指向下一个记号
-        advance();
-
     } else if (F(T_ID)) {
         // ID开头的表达式，可以是函数调用，也可以是数组，或者变量名
         var_id_attr id = rd_lval.var_id;
@@ -263,21 +275,23 @@ static ast_node * expr()
 /// @return AST的节点
 static ast_node * returnStatement()
 {
+
     if (match(T_RETURN)) {
 
-        // 匹配成功return关键字并移动到下一个字符
+        // return语句的First集合元素为T_RETURN
+        // 若匹配，则说明是return语句
 
         ast_node * expr_node = expr();
 
         if (!match(T_SEMICOLON)) {
+
             // 返回语句后没有分号
             semerror("返回语句后没有分号");
         }
 
-        return ast_node::New(ast_operator_type::AST_OP_RETURN, expr_node, nullptr);
+        return create_contain_node(ast_operator_type::AST_OP_RETURN, expr_node);
     }
 
-    // 语法失败返回空节点，不可能，因为外部已判断T_RETURN
     return nullptr;
 }
 
@@ -470,7 +484,8 @@ static ast_node * BlockItem()
 }
 
 ///
-/// @brief 块语句列表分析识别，文法为BlockItemList : BlockItem+
+/// @brief 块内语句列表识别，文法为BlockItemList : BlockItem+
+/// @return AST的节点
 ///
 static void BlockItemList(ast_node * blockNode)
 {
@@ -493,7 +508,8 @@ static void BlockItemList(ast_node * blockNode)
 }
 
 ///
-/// @brief 语句块识别，文法：T_L_BRACE BlockItemList? T_R_BRACE
+/// @brief 语句块识别，文法：Block -> T_L_BRACE BlockItemList? T_R_BRACE
+/// @return AST的节点
 ///
 static ast_node * Block()
 {
@@ -507,7 +523,7 @@ static ast_node * Block()
             return blockNode;
         }
 
-        // 遍历是否有语句定义？如有则追加
+        // 块内语句列表识别
         BlockItemList(blockNode);
 
         // 没有匹配左大括号，则语法错误
@@ -525,37 +541,31 @@ static ast_node * Block()
 
 ///
 /// @brief 文法分析：idtail : varDeclList | T_L_PAREN T_R_PAREN block
-/// @param type 类型
-/// @param id 标识符
+/// @param type 类型 变量类型或函数返回值类型
+/// @param id 标识符 变量名或者函数名
 ///
 static ast_node * idtail(type_attr & type, var_id_attr & id)
 {
     if (match(T_L_PAREN)) {
         // 函数定义
 
-        if (!match(T_R_PAREN)) {
+		// 目前函数定义没有形参，因此必须是右小括号
+        if (match(T_R_PAREN)) {
+		
+			// 识别block
+			ast_node * blockNode = Block();
+
+			// 形参结点没有，设置为空指针
+			ast_node * formalParamsNode = nullptr;
+
+			// 创建函数定义的节点，孩子有类型，函数名，语句块和形参(实际上无)
+			// create_func_def函数内会释放id中指向的标识符空间，切记，之后不要再释放，之前一定要是通过strdup函数或者malloc分配的空间
+			return create_func_def(type, id, blockNode, formalParamsNode);
+        } else {
             semerror("函数定义缺少右小括号");
-            // 继续语法识别
         }
-
-        // 遍历block语法结点
-        ast_node * blockNode = Block();
-
-        if (blockNode) {
-
-            // 目前的文法要求块节点需存在，若无则语法错误
-
-            // 形参结点没有，设置为空指针
-            ast_node * formalParamsNode = nullptr;
-
-            // 创建函数定义的节点，孩子有类型，函数名，语句块和形参(实际上无)
-            return create_func_def(type, id, blockNode, formalParamsNode);
-        }
-
-        // 输出语法错误
-        semerror("函数定义没有函数体");
-
-        return nullptr;
+		
+		return nullptr;
     }
 
     // 这里只能是变量定义
@@ -613,7 +623,7 @@ static ast_node * compileUnit()
                 // 函数定义的开头为int
                 ast_node * node = idtail(type, id);
 
-                // 加入到父节点中
+                // 加入到父节点中，node为空时insert_son_node内部进行了忽略
                 (void) cu_node->insert_son_node(node);
             } else {
                 semerror("类型后要求的记号为标识符");

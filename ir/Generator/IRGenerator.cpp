@@ -2,8 +2,8 @@
 /// @file IRGenerator.cpp
 /// @brief AST遍历产生线性IR的源文件
 /// @author zenglj (zenglj@live.com)
-/// @version 1.0
-/// @date 2024-09-29
+/// @version 1.1
+/// @date 2024-11-23
 ///
 /// @copyright Copyright (c) 2024
 ///
@@ -11,6 +11,7 @@
 /// <table>
 /// <tr><th>Date       <th>Version <th>Author  <th>Description
 /// <tr><td>2024-09-29 <td>1.0     <td>zenglj  <td>新建
+/// <tr><td>2024-11-23 <td>1.1     <td>zenglj  <td>表达式版增强
 /// </table>
 ///
 #include <cstdint>

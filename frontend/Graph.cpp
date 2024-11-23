@@ -1,13 +1,19 @@
-﻿/**
- * @file Graph.cpp
- * @author zenglj (zenglj@nwpu.edu.cn)
- * @brief 利用graphviz图形化显示AST，本文件采用C语言实现，没有采用C++的类实现，注意AST的遍历方式和其它的不同
- * @version 0.1
- * @date 2023-09-24
- *
- * @copyright Copyright (c) 2023
- *
- */
+﻿///
+/// @file Graph.cpp
+/// @brief 利用graphviz图形化显示AST，本文件采用C语言实现，没有采用C++的类实现，注意AST的遍历方式和其它的不同
+/// @author zenglj (zenglj@live.com)
+/// @version 1.1
+/// @date 2024-11-23
+///
+/// @copyright Copyright (c) 2024
+///
+/// @par 修改日志:
+/// <table>
+/// <tr><th>Date       <th>Version <th>Author  <th>Description
+/// <tr><td>2024-11-21 <td>1.0     <td>zenglj  <td>新做
+/// <tr><td>2024-11-23 <td>1.1     <td>zenglj  <td>表达式版增强
+/// </table>
+///
 
 #include <vector>
 
@@ -51,6 +57,9 @@ string getNodeName(ast_node * astnode)
         case ast_operator_type::AST_OP_COMPILE_UNIT:
             nodeName = "compile-unit";
             break;
+        case ast_operator_type::AST_OP_FUNC_FORMAL_PARAMS:
+            nodeName = "formal_params";
+            break;
         case ast_operator_type::AST_OP_VAR_DECL:
             nodeName = "var-decl";
             break;
@@ -65,9 +74,6 @@ string getNodeName(ast_node * astnode)
             break;
         case ast_operator_type::AST_OP_ASSIGN:
             nodeName = "=";
-            break;
-        case ast_operator_type::AST_OP_FUNC_FORMAL_PARAMS:
-            nodeName = "formal_params";
             break;
         case ast_operator_type::AST_OP_FUNC_CALL:
             nodeName = "func-call";

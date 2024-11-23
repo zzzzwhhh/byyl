@@ -2,8 +2,8 @@
 /// @file Antlr4CSTVisitor.h
 /// @brief Antlr4的具体语法树的遍历产生AST
 /// @author zenglj (zenglj@live.com)
-/// @version 1.0
-/// @date 2024-09-29
+/// @version 1.1
+/// @date 2024-11-23
 ///
 /// @copyright Copyright (c) 2024
 ///
@@ -11,6 +11,7 @@
 /// <table>
 /// <tr><th>Date       <th>Version <th>Author  <th>Description
 /// <tr><td>2024-09-29 <td>1.0     <td>zenglj  <td>新建
+/// <tr><td>2024-11-23 <td>1.1     <td>zenglj  <td>表达式版增强
 /// </table>
 ///
 #pragma once
@@ -71,14 +72,24 @@ protected:
     /// @return AST的节点
     std::any visitReturnStatement(MiniCParser::ReturnStatementContext * ctx) override;
 
-    std::any visitAssignStatement(MiniCParser::AssignStatementContext * ctx) override;
-
-    std::any visitBlockStatement(MiniCParser::BlockStatementContext * ctx) override;
-
     /// @brief 非终结运算符expr的遍历
     /// @param ctx CST上下文
     /// @return AST的节点
     std::any visitExpr(MiniCParser::ExprContext * ctx) override;
+
+    ///
+    /// @brief 内部产生的非终结符assignStatement的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitAssignStatement(MiniCParser::AssignStatementContext * ctx) override;
+
+    ///
+    /// @brief 内部产生的非终结符blockStatement的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    std::any visitBlockStatement(MiniCParser::BlockStatementContext * ctx) override;
 
     ///
     /// @brief 非终结符AddExp的分析

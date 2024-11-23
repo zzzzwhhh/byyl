@@ -25,8 +25,8 @@ void yyerror(char * msg);
     struct digit_int_attr integer_num;
     struct digit_real_attr float_num;
     struct var_id_attr var_id;
-	struct type_attr type;
-	int op_class;
+    struct type_attr type;
+    int op_class;
 };
 
 // 文法的开始符号
@@ -41,10 +41,10 @@ void yyerror(char * msg);
 %token <var_id> T_ID
 %token <type> T_INT
 
-// 关键或保留字
+// 关键或保留字 一词一类 不需要赋予语义属性
 %token T_RETURN
 
-// 分隔符
+// 分隔符 一词一类 不需要赋予语义属性
 %token T_SEMICOLON T_L_PAREN T_R_PAREN T_L_BRACE T_R_BRACE
 
 // 运算符
@@ -73,15 +73,17 @@ void yyerror(char * msg);
 // compileUnit: funcDef | varDecl | compileUnit funcDef | compileUnit varDecl
 CompileUnit : FuncDef {
 
-		// 创建一个编译单元的节点AST_OP_COMPILE_UNIT
-        $$ = create_contain_node(ast_operator_type::AST_OP_COMPILE_UNIT, $1);
-        ast_root = $$;
-    }
+	        // 创建一个编译单元的节点AST_OP_COMPILE_UNIT
+	        $$ = create_contain_node(ast_operator_type::AST_OP_COMPILE_UNIT, $1);
+
+	        // 设置到全局变量中
+		ast_root = $$;
+	}
 	| VarDecl {
 
 		// 创建一个编译单元的节点AST_OP_COMPILE_UNIT
 		$$ = create_contain_node(ast_operator_type::AST_OP_COMPILE_UNIT, $1);
-        ast_root = $$;
+		ast_root = $$;
 	}
 	| CompileUnit FuncDef {
 
@@ -92,47 +94,48 @@ CompileUnit : FuncDef {
 		// 把变量定义的节点作为编译单元的孩子
 		$$ = $1->insert_son_node($2);
 	}
-    ;
+	;
 
 // 函数定义，目前支持整数返回类型，不支持形参
 FuncDef : T_INT T_ID T_L_PAREN T_R_PAREN Block  {
 
-        // 创建整型类型节点的终结符节点
-        ast_node * type_node = ast_node::New(IntegerType::getTypeInt());
+		// 函数返回类型
+		type_attr funcReturnType = $1;
 
-        // 创建函数名的标识符终结符节点
-        ast_node * name_node = ast_node::New(std::string($2.id), $2.lineno);
-
-		// 对于字符型字面量的字符串空间需要释放，因词法用到了strdup进行了字符串复制
-		free($2.id);
-
-        // 形参结点没有，设置为空指针
-        ast_node * formalParamsNode = nullptr;
+		// 函数名
+		var_id_attr funcId = $2;
 
 		// 函数体节点即Block，即$5
+		ast_node * blockNode = $5;
+
+		// 形参结点没有，设置为空指针
+		ast_node * formalParamsNode = nullptr;
 
 		// 创建函数定义的节点，孩子有类型，函数名，语句块和形参(实际上无)
-        $$ = create_func_def(type_node, name_node, $5, formalParamsNode);
-    }
-    ;
+		// create_func_def函数内会释放funcId中指向的标识符空间，切记，之后不要再释放，之前一定要是通过strdup函数或者malloc分配的空间
+		$$ = create_func_def(funcReturnType, funcId, blockNode, formalParamsNode);
+	}
+	;
 
 // 语句块的文法Block ： T_L_BRACE BlockItemList? T_R_BRACE
 // 其中?代表可有可无，在bison中不支持，需要拆分成两个产生式
 // Block ： T_L_BRACE T_R_BRACE | T_L_BRACE BlockItemList T_R_BRACE
 Block : T_L_BRACE T_R_BRACE {
 		// 语句块没有语句
+
 		// 为了方便创建一个空的Block节点
-        $$ = create_contain_node(ast_operator_type::AST_OP_BLOCK);
-    }
-    | T_L_BRACE BlockItemList T_R_BRACE {
-        // 语句块含有语句
+		$$ = create_contain_node(ast_operator_type::AST_OP_BLOCK);
+	}
+	| T_L_BRACE BlockItemList T_R_BRACE {
+		// 语句块含有语句
+
 		// BlockItemList归约时内部创建Block节点，并把语句加入，这里不创建Block节点
-        $$ = $2;
-    }
-    ;
+		$$ = $2;
+	}
+	;
 
 // 语句块内语句列表的文法：BlockItemList : BlockItem+
-// Bison不支持正闭包，因此需要修改成左递归形式
+// Bison不支持正闭包，需修改成左递归形式，便于属性的传递与孩子节点的追加
 // 左递归形式的文法为：BlockItemList : BlockItem | BlockItemList BlockItem
 BlockItemList : BlockItem {
         // 第一个左侧的孩子节点归约成Block节点，后续语句可持续作为孩子追加到Block节点中
@@ -145,17 +148,18 @@ BlockItemList : BlockItem {
 	}
     ;
 
-// 语句块子项的文法：BlockItem : Statement | VarDecl
-// 目前只支持语句和变量定义
+
+// 语句块中子项的文法：BlockItem : Statement
+// 目前只支持语句,后续可增加支持变量定义
 BlockItem : Statement  {
 		// 语句节点传递给归约后的节点上，综合属性
-        $$ = $1;
-    }
+		$$ = $1;
+	}
 	| VarDecl {
 		// 变量声明节点传递给归约后的节点上，综合属性
 		$$ = $1;
 	}
-    ;
+	;
 
 // 变量声明语句
 // 语法：varDecl: basicType varDef (T_COMMA varDef)* T_SEMICOLON
@@ -177,7 +181,7 @@ VarDeclExpr: BasicType VarDef {
 		ast_node * decl_node = create_contain_node(ast_operator_type::AST_OP_VAR_DECL, type_node, $2);
 
 		// 创建变量声明语句，并加入第一个变量
-        $$ = create_var_decl_stmt_node(decl_node);
+		$$ = create_var_decl_stmt_node(decl_node);
 	}
 	| VarDeclExpr T_COMMA VarDef {
 
@@ -188,7 +192,7 @@ VarDeclExpr: BasicType VarDef {
 		ast_node * decl_node = create_contain_node(ast_operator_type::AST_OP_VAR_DECL, type_node, $3);
 
 		// 插入到变量声明语句
-        $$ = $1->insert_son_node(decl_node);
+		$$ = $1->insert_son_node(decl_node);
 	}
 	;
 
@@ -214,11 +218,11 @@ BasicType: T_INT {
 // 支持返回语句、赋值语句、语句块、表达式语句
 // 其中表达式语句可支持空语句，由于bison不支持?，修改成两条
 Statement : T_RETURN Expr T_SEMICOLON {
-        // 返回语句
+		// 返回语句
 
 		// 创建返回节点AST_OP_RETURN，其孩子为Expr，即$2
-        $$ = create_contain_node(ast_operator_type::AST_OP_RETURN, $2);
-    }
+		$$ = create_contain_node(ast_operator_type::AST_OP_RETURN, $2);
+	}
 	| LVal T_ASSIGN Expr T_SEMICOLON {
 		// 赋值语句
 
@@ -243,15 +247,15 @@ Statement : T_RETURN Expr T_SEMICOLON {
 		// 直接返回空指针，需要再把语句加入到语句块时要注意判断，空语句不要加入
 		$$ = nullptr;
 	}
-    ;
+	;
 
 // 表达式文法 expr : AddExp
 // 表达式目前只支持加法与减法运算
 Expr : AddExp {
-        // 直接传递给归约后的节点
-        $$ = $1;
-    }
-    ;
+		// 直接传递给归约后的节点
+		$$ = $1;
+	}
+	;
 
 // 加减表达式文法：addExp: unaryExp (addOp unaryExp)*
 // 由于bison不支持用闭包表达，因此需要拆分成左递归的形式
@@ -272,16 +276,16 @@ AddExp : UnaryExp {
 	| AddExp AddOp UnaryExp {
 		// 左递归形式可通过加减连接多个一元表达式
 
-        // 创建加减运算节点，孩子为AddExp($1)和UnaryExp($3)
-        $$ = create_contain_node(ast_operator_type($2), $1, $3);
-    }
-    ;
+		// 创建加减运算节点，孩子为AddExp($1)和UnaryExp($3)
+		$$ = create_contain_node(ast_operator_type($2), $1, $3);
+	}
+	;
 
 // 加减运算符
 AddOp: T_ADD {
 		$$ = (int)ast_operator_type::AST_OP_ADD;
 	}
-    | T_SUB {
+	| T_SUB {
 		$$ = (int)ast_operator_type::AST_OP_SUB;
 	}
 	;
@@ -294,10 +298,10 @@ UnaryExp : PrimaryExp {
 		// 基本表达式
 
 		// 传递到归约后的UnaryExp上
-        $$ = $1;
-    }
-    | T_ID T_L_PAREN T_R_PAREN {
-        // 没有实参的函数调用
+		$$ = $1;
+	}
+	| T_ID T_L_PAREN T_R_PAREN {
+		// 没有实参的函数调用
 
 		// 创建函数调用名终结符节点
 		ast_node * name_node = ast_node::New(std::string($1.id), $1.lineno);
@@ -306,14 +310,14 @@ UnaryExp : PrimaryExp {
 		free($1.id);
 
 		// 实参列表
-        ast_node * paramListNode = nullptr;
+		ast_node * paramListNode = nullptr;
 
 		// 创建函数调用节点，其孩子为被调用函数名和实参，实参为空，但函数内部会创建实参列表节点，无孩子
 		$$ = create_func_call(name_node, paramListNode);
 
-    }
-    | T_ID T_L_PAREN RealParamList T_R_PAREN {
-        // 含有实参的函数调用
+	}
+	| T_ID T_L_PAREN RealParamList T_R_PAREN {
+		// 含有实参的函数调用
 
 		// 创建函数调用名终结符节点
 		ast_node * name_node = ast_node::New(std::string($1.id), $1.lineno);
@@ -322,32 +326,32 @@ UnaryExp : PrimaryExp {
 		free($1.id);
 
 		// 实参列表
-        ast_node * paramListNode = $3;
+		ast_node * paramListNode = $3;
 
 		// 创建函数调用节点，其孩子为被调用函数名和实参，实参不为空
-        $$ = create_func_call(name_node, paramListNode);
-    }
+		$$ = create_func_call(name_node, paramListNode);
+	}
 	;
 
 // 基本表达式支持无符号整型字面量、带括号的表达式、具有左值属性的表达式
 // 其文法为：primaryExp: T_L_PAREN expr T_R_PAREN | T_DIGIT | lVal
 PrimaryExp :  T_L_PAREN Expr T_R_PAREN {
-        // 带有括号的表达式
-        $$ = $2;
-    }
-    | T_DIGIT {
-        // 无符号整型字面量
+		// 带有括号的表达式
+		$$ = $2;
+	}
+	| T_DIGIT {
+        	// 无符号整型字面量
 
-		// 常见一个无符号整型的终结符节点
-		$$ = ast_node::New(digit_int_attr{$1.val, $1.lineno});
-    }
-    | LVal  {
-        // 具有左值的表达式
+		// 创建一个无符号整型的终结符节点
+		$$ = ast_node::New($1);
+	}
+	| LVal  {
+		// 具有左值的表达式
 
 		// 直接传递到归约后的非终结符号PrimaryExp
-        $$ = $1;
-    }
-    ;
+		$$ = $1;
+	}
+	;
 
 // 实参表达式支持逗号分隔的若干个表达式
 // 其文法为：realParamList: expr (T_COMMA expr)*
@@ -355,25 +359,26 @@ PrimaryExp :  T_L_PAREN Expr T_R_PAREN {
 // 左递归文法为：RealParamList : Expr | 左递归文法为：RealParamList T_COMMA expr
 RealParamList : Expr {
 		// 创建实参列表节点，并把当前的Expr节点加入
-        $$ = create_contain_node(ast_operator_type::AST_OP_FUNC_REAL_PARAMS, $1);
-    }
-    | RealParamList T_COMMA Expr {
+		$$ = create_contain_node(ast_operator_type::AST_OP_FUNC_REAL_PARAMS, $1);
+	}
+	| RealParamList T_COMMA Expr {
 		// 左递归增加实参表达式
 		$$ = $1->insert_son_node($3);
-    }
-    ;
+	}
+	;
 
 // 左值表达式，目前只支持变量名，实际上还有下标变量
 LVal : T_ID {
-        // 变量名终结符
+		// 变量名终结符
 
 		// 创建变量名终结符节点
-        $$ = ast_node::New(var_id_attr{$1.id, $1.lineno});
+		$$ = ast_node::New($1);
 
 		// 对于字符型字面量的字符串空间需要释放，因词法用到了strdup进行了字符串复制
 		free($1.id);
-    }
+	}
 	;
+
 %%
 
 // 语法识别错误要调用函数的定义

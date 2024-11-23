@@ -1,18 +1,23 @@
-﻿/**
- * @file AST.cpp
- * @author zenglj (zenglj@nwpu.edu.cn)
- * @brief 抽象语法树管理
- * @version 0.1
- * @date 2023-09-24
- *
- * @copyright Copyright (c) 2023
- *
- */
+﻿///
+/// @file AST.cpp
+/// @brief 抽象语法树AST管理的实现
+/// @author zenglj (zenglj@live.com)
+/// @version 1.1
+/// @date 2024-11-23
+///
+/// @copyright Copyright (c) 2024
+///
+/// @par 修改日志:
+/// <table>
+/// <tr><th>Date       <th>Version <th>Author  <th>Description
+/// <tr><td>2024-11-21 <td>1.0     <td>zenglj  <td>新做
+/// <tr><td>2024-11-23 <td>1.1     <td>zenglj  <td>表达式版增强
+/// </table>
+///
 #include <cstdarg>
 #include <cstdint>
 #include <string>
 
-#include "Common.h"
 #include "AST.h"
 #include "AttrType.h"
 #include "Types/IntegerType.h"
@@ -272,6 +277,27 @@ ast_node * create_contain_node(ast_operator_type node_type,
     return node;
 }
 
+Type * typeAttr2Type(type_attr & attr)
+{
+    if (attr.type == BasicType::TYPE_INT) {
+        return IntegerType::getTypeInt();
+    } else {
+        return VoidType::getType();
+    }
+}
+
+/// @brief 创建类型节点
+/// @param type 类型信息
+/// @return 创建的节点
+ast_node * create_type_node(type_attr & attr)
+{
+    Type * type = typeAttr2Type(attr);
+
+    ast_node * type_node = ast_node::New(type);
+
+    return type_node;
+}
+
 /// @brief 创建函数调用的节点
 /// @param funcname_node 函数名节点
 /// @param params_node 实参节点
@@ -292,27 +318,6 @@ ast_node * create_func_call(ast_node * funcname_node, ast_node * params_node)
     (void) node->insert_son_node(params_node);
 
     return node;
-}
-
-Type * typeAttr2Type(type_attr & attr)
-{
-    if (attr.type == BasicType::TYPE_INT) {
-        return IntegerType::getTypeInt();
-    } else {
-        return VoidType::getType();
-    }
-}
-
-/// @brief 创建类型节点
-/// @param type 类型信息
-/// @return 创建的节点
-ast_node * create_type_node(type_attr & attr)
-{
-    Type * type = typeAttr2Type(attr);
-
-    ast_node * type_node = ast_node::New(type);
-
-    return type_node;
 }
 
 ///
