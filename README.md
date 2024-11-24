@@ -106,7 +106,7 @@ WS: [ \r\n\t]+ -> skip;
 
 这里只是返回Token类别的Flex脚本。
 
-```flex
+```lex
 "("         { return T_L_PAREN; }
 ")"         { return T_R_PAREN; }
 "{"         { return T_L_BRACE; }
