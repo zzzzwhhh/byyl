@@ -314,13 +314,16 @@ blockItem的antlr4中的文法：
 blockItem: statement | varDecl;
 varDecl : T_INT T_ID varDeclList
 statement:T_RETURN expr T_SEMICOLON | lVal T_ASSIGN expr T_SEMICOLON | block | expr? T_SEMICOLON
+lVal: T_ID;
 ```
 
+分析非终结符的FISRT集合：
 ```
 FIRST(varDecl)=FIRST(T_INT T_ID varDeclList)={T_INT}
-```
-
-```
+FIRST(T_RETURN expr T_SEMICOLON) = {T_RETURN}
+FIRST(lVal T_ASSIGN expr T_SEMICOLON) = FIRST(lVal) = {T_ID}
+FIRST(block) = FIRST(T_L_BRACE blockItemList? T_R_BRACE) = {T_L_BRACE}
+FIRST(expr? T_SEMICOLON) = FIRST(expr) - {ε} ∪ {T_SEMICOLON} = {T_ID, T_L_PAREN, T_SEMICOLON}
 FIRST(statement)
 = FIRST(T_RETURN expr T_SEMICOLON) ∪ FIRST(lVal T_ASSIGN expr T_SEMICOLON) ∪ FIRST(block) ∪ FIRST(expr? T_SEMICOLON)
 = {T_RETURN} ∪ {T_ID} ∪ {T_L_BRACE} ∪ {T_ID, T_L_PAREN, T_SEMICOLON}
@@ -331,7 +334,11 @@ FIRST(statement)
 
 非终结符varDecl只有一个产生式，满足LL(1)文法要求。
 
-但是非终结符statement的各个产生式的FRIST集合存在交集的可能，即：FIRST(lVal T_ASSIGN expr T_SEMICOLON) ∩ FIRST(expr? T_SEMICOLON) = {T_ID}，因此非终结符statement的文法必须改造。
+非终结符statement的各个产生式的FRIST集合存在交集的可能，即：FIRST(lVal T_ASSIGN expr T_SEMICOLON) ∩ FIRST(expr? T_SEMICOLON) = {T_ID}，
+因此非终结符statement相关的文法必须改造。
+
+因lVal也就是T_ID，属于非终结符expr的子集，消除lVal都放到expr中，但是存在语义错误的可能，只有左值的才能被赋值，需要在语义分析时检查。
+引入非终结符assignExprStmtTail，代表赋值右侧表达式（含赋值运算符）和空串。
 
 改造后的文法为：
 ```antlr
@@ -341,11 +348,15 @@ assignExprStmt : expr assignExprStmtTail
 assignExprStmtTail : T_ASSIGN expr | ε
 ```
 
+分析FIRST集合和FOLLOW集合，可得：
+```
 FOLLOW(assignExprStmtTail) = {T_SEMICOLON}
-
 FIRST(T_ASSIGN expr) = {T_ASSIGN}
+```
 
-两者不交，因此非终结符assignExprStmtTail满足LL(1)文法的要求。
+两者不交，可得，非终结符assignExprStmtTail满足LL(1)文法的要求。
+
+同时非终结符statement也明显满足LL(1)文法的要求。
 
 因此改造后满足LL(1)文法要求的文法为：
 ```antlr
@@ -359,6 +370,7 @@ assignExprStmtTail : T_ASSIGN expr | ε
 
 5. 非终结符expr的分析
 
+下面是antlr中的文法：
 ```antlr
 expr: addExp;
 addExp: unaryExp (addOp unaryExp)*;
@@ -390,7 +402,7 @@ FIRST(primaryExp) ∩ {T_ID T_L_PAREN realParamList? T_R_PAREN}
 = {T_ID}
 ```
 
-因为有关unaryExp的文法不满足LL(1)文法要求，必须改造，改造后的文法为：
+因unaryExp不满足LL(1)文法要求，必须改造，改造后的文法为：
 ```antlr
 expr: addExp;
 addExp: unaryExp (addOp unaryExp)*;
@@ -399,9 +411,11 @@ idTail: T_L_PAREN realParamList? T_R_PAREN | ε ;
 realParamList: expr (T_COMMA expr)*;
 addOp: T_ADD | T_SUB;
 ```
+
 其中idTail表示标识符ID后可以是括号，代表函数调用；可以是空串，代表简单变量；可以是中括号，代表数组（暂不支持）。
 
 这里必须要确保FOLLOW(idTail) ∩ FIRST(T_L_PAREN realParamList? T_R_PAREN)为空集，否则还不是LL(1)文法。
+
 ```
 FIRST(T_L_PAREN realParamList? T_R_PAREN) = {T_L_PAREN}
 FOLLOW(idTail) = {T_ADD, T_SUB, T_R_PAREN, T_ASSIGN, T_SEMICOLON}。
