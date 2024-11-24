@@ -1,13 +1,449 @@
 # 1. MiniC编译器-表达式版
 
-## 1.1. 编译器实现的功能
+## 1.1. 编译器的功能
 
-1. 支持局部变量定义，不支持初值
-2. 支持return语句，返回的表达式只能是无符号十进制整数
+在基本版的基础上，还支持如下的功能：
+1. 支持int类型的全局变量定义，不支持变量初始化设值；
+2. 函数可定义多个，但不支持形参，函数返回值仍然是int类型；
+3. 函数内支持int类型的局部变量定义，不必在语句块的开头；
+4. 支持赋值语句，不支持连续赋值；
+6. 支持语句块；
+5. 表达式支持加减、函数调用、带括号的运算；
+7. 支持内置函数putint，通过它可在终端显示对应的十进制值；
+8. 变量可重名，支持变量分层管理。
 
-源代码位置：<https://github.com/NPUCompiler/exp03-minic-basic.git>
+源代码位置：<https://github.com/NPUCompiler/exp03-minic-expr.git>
 
-## 1.2. 编译器的命令格式
+## 1.2. 编译器的文法
+
+### 1.2.1. antlr4格式的文法
+
+```antlr
+// 源文件编译单元定义
+compileUnit: (funcDef | varDecl)* EOF;
+
+// 函数定义，目前不支持形参，也不支持返回void类型等
+funcDef: T_INT T_ID T_L_PAREN T_R_PAREN block;
+
+// 语句块看用作函数体，这里允许多个语句，并且不含任何语句
+block: T_L_BRACE blockItemList? T_R_BRACE;
+
+// 每个ItemList可包含至少一个Item
+blockItemList: blockItem+;
+
+// 每个Item可以是一个语句，或者变量声明语句
+blockItem: statement | varDecl;
+
+// 变量声明，目前不支持变量含有初值
+varDecl: basicType varDef (T_COMMA varDef)* T_SEMICOLON;
+
+// 基本类型
+basicType: T_INT;
+
+// 变量定义
+varDef: T_ID;
+
+// 目前语句支持return和赋值语句
+statement:
+	T_RETURN expr T_SEMICOLON			# returnStatement
+	| lVal T_ASSIGN expr T_SEMICOLON	# assignStatement
+	| block								# blockStatement
+	| expr? T_SEMICOLON					# expressionStatement;
+
+// 表达式文法 expr : AddExp 表达式目前只支持加法与减法运算
+expr: addExp;
+
+// 加减表达式
+addExp: unaryExp (addOp unaryExp)*;
+
+// 加减运算符
+addOp: T_ADD | T_SUB;
+
+// 一元表达式
+unaryExp: primaryExp | T_ID T_L_PAREN realParamList? T_R_PAREN;
+
+// 基本表达式：括号表达式、整数、左值表达式
+primaryExp: T_L_PAREN expr T_R_PAREN | T_DIGIT | lVal;
+
+// 实参列表
+realParamList: expr (T_COMMA expr)*;
+
+// 左值表达式
+lVal: T_ID;
+
+// 用正规式来进行词法规则的描述
+
+T_L_PAREN: '(';
+T_R_PAREN: ')';
+T_SEMICOLON: ';';
+T_L_BRACE: '{';
+T_R_BRACE: '}';
+
+T_ASSIGN: '=';
+T_COMMA: ',';
+
+T_ADD: '+';
+T_SUB: '-';
+
+// 要注意关键字同样也属于T_ID，因此必须放在T_ID的前面，否则会识别成T_ID
+T_RETURN: 'return';
+T_INT: 'int';
+T_VOID: 'void';
+
+T_ID: [a-zA-Z_][a-zA-Z0-9_]*;
+T_DIGIT: '0' | [1-9][0-9]*;
+
+/* 空白符丢弃 */
+WS: [ \r\n\t]+ -> skip;
+```
+
+### 1.2.2. flex词法
+
+这里只是返回Token类别的Flex脚本。
+
+```flex
+"("         { return T_L_PAREN; }
+")"         { return T_R_PAREN; }
+"{"         { return T_L_BRACE; }
+"}"         { return T_R_BRACE; }
+
+";"         { return T_SEMICOLON; }
+","         { return T_COMMA; }
+
+"="         { return T_ASSIGN; }
+"+"         { return T_ADD; }
+"-"         { return T_SUB; }
+
+"0"|[1-9][0-9]*	{ return T_DIGIT; }
+
+"int"       { return T_INT; }
+"return"    { return T_RETURN; }
+[a-zA-Z_]+[0-9a-zA-Z_]* { return T_ID; }
+
+[\t\040]+   { ; }
+[\r\n]+     { ; }
+```
+
+### 1.2.3. bison语法
+
+要想使用bison进行语法的识别，文法必须满足LR(1)文法。如不能满足，则在y脚本中指定优先级规则，
+依据bison提供的算法优先级指定策略、移进优先归约等规则消除二义性，满足文法的要求。
+
+```bison
+
+// 文法的开始符号
+%start  CompileUnit
+
+// 指定文法的终结符号，<>可指定文法属性
+// 对于单个字符的算符或者分隔符，在词法分析时可直返返回对应的ASCII码值，bison预留了255以内的值
+// %token开始的符号称之为终结符，需要词法分析工具如flex识别后返回
+// %type开始的符号称之为非终结符，需要通过文法产生式来定义
+// %token或%type之后的<>括住的内容成为文法符号的属性，定义在前面的%union中的成员名字。
+%token T_DIGIT
+%token T_ID
+%token T_INT
+
+// 关键或保留字 一词一类 不需要赋予语义属性
+%token T_RETURN
+
+// 分隔符 一词一类 不需要赋予语义属性
+%token T_SEMICOLON T_L_PAREN T_R_PAREN T_L_BRACE T_R_BRACE
+
+// 运算符
+%token T_ASSIGN T_COMMA T_SUB T_ADD
+
+// 非终结符
+// %type指定文法的非终结符号，<>可指定文法属性
+%type CompileUnit
+%type FuncDef
+%type Block
+%type BlockItemList
+%type BlockItem
+%type Statement
+%type Expr
+%type LVal
+%type VarDecl VarDeclExpr VarDef
+%type AddExp UnaryExp PrimaryExp
+%type RealParamList
+%type BasicType
+%type AddOp
+%%
+
+// 编译单元可包含若干个函数与全局变量定义。要在语义分析时检查main函数存在
+// compileUnit: (funcDef | varDecl)* EOF;
+// bison不支持闭包运算，为便于追加修改成左递归方式
+// compileUnit: funcDef | varDecl | compileUnit funcDef | compileUnit varDecl
+CompileUnit : FuncDef | VarDecl | CompileUnit FuncDef | CompileUnit VarDecl ;
+
+// 函数定义，目前支持整数返回类型，不支持形参
+FuncDef : T_INT T_ID T_L_PAREN T_R_PAREN Block ;
+
+// 语句块的文法Block ： T_L_BRACE BlockItemList? T_R_BRACE
+// 其中?代表可有可无，在bison中不支持，需要拆分成两个产生式
+// Block ： T_L_BRACE T_R_BRACE | T_L_BRACE BlockItemList T_R_BRACE
+Block : T_L_BRACE T_R_BRACE | T_L_BRACE BlockItemList T_R_BRACE ;
+
+// 语句块内语句列表的文法：BlockItemList : BlockItem+
+// Bison不支持正闭包，需修改成左递归形式，便于属性的传递与孩子节点的追加
+// 左递归形式的文法为：BlockItemList : BlockItem | BlockItemList BlockItem
+BlockItemList : BlockItem | BlockItemList BlockItem ;
+
+// 语句块中子项的文法：BlockItem : Statement
+// 目前只支持语句,后续可增加支持变量定义
+BlockItem : Statement | VarDecl ;
+
+// 变量声明语句
+// 语法：varDecl: basicType varDef (T_COMMA varDef)* T_SEMICOLON
+// 因Bison不支持闭包运算符，因此需要修改成左递归，修改后的文法为：
+// VarDecl : VarDeclExpr T_SEMICOLON
+// VarDeclExpr: BasicType VarDef | VarDeclExpr T_COMMA varDef
+VarDecl : VarDeclExpr T_SEMICOLON ;
+
+// 变量声明表达式，可支持逗号分隔定义多个
+VarDeclExpr: BasicType VarDef | VarDeclExpr T_COMMA VarDef ;
+
+// 变量定义包含变量名，实际上还有初值，这里没有实现。
+VarDef : T_ID ;
+
+// 基本类型，目前只支持整型
+BasicType: T_INT ;
+
+// 语句文法：statement:T_RETURN expr T_SEMICOLON | lVal T_ASSIGN expr T_SEMICOLON
+// | block | expr? T_SEMICOLON
+// 支持返回语句、赋值语句、语句块、表达式语句
+// 其中表达式语句可支持空语句，由于bison不支持?，修改成两条
+Statement : T_RETURN Expr T_SEMICOLON | LVal T_ASSIGN Expr T_SEMICOLON | Block | Expr T_SEMICOLON | T_SEMICOLON ;
+
+// 表达式文法 expr : AddExp
+// 表达式目前只支持加法与减法运算
+Expr : AddExp ;
+
+// 加减表达式文法：addExp: unaryExp (addOp unaryExp)*
+// 由于bison不支持用闭包表达，因此需要拆分成左递归的形式
+// 改造后的左递归文法：
+// addExp : unaryExp | unaryExp addOp unaryExp | addExp addOp unaryExp
+AddExp : UnaryExp | UnaryExp AddOp UnaryExp | AddExp AddOp UnaryExp ;
+
+// 加减运算符
+AddOp: T_ADD | T_SUB ;
+
+// 目前一元表达式可以为基本表达式、函数调用，其中函数调用的实参可有可无
+// 其文法为：unaryExp: primaryExp | T_ID T_L_PAREN realParamList? T_R_PAREN
+// 由于bison不支持？表达，因此变更后的文法为：
+// unaryExp: primaryExp | T_ID T_L_PAREN T_R_PAREN | T_ID T_L_PAREN realParamList T_R_PAREN
+UnaryExp : PrimaryExp | T_ID T_L_PAREN T_R_PAREN | T_ID T_L_PAREN RealParamList T_R_PAREN ;
+
+// 基本表达式支持无符号整型字面量、带括号的表达式、具有左值属性的表达式
+// 其文法为：primaryExp: T_L_PAREN expr T_R_PAREN | T_DIGIT | lVal
+PrimaryExp :  T_L_PAREN Expr T_R_PAREN | T_DIGIT | LVal ;
+
+// 实参表达式支持逗号分隔的若干个表达式
+// 其文法为：realParamList: expr (T_COMMA expr)*
+// 由于Bison不支持闭包运算符表达，修改成左递归形式的文法
+// 左递归文法为：RealParamList : Expr | 左递归文法为：RealParamList T_COMMA expr
+RealParamList : Expr | RealParamList T_COMMA Expr ;
+
+// 左值表达式，目前只支持变量名，实际上还有下标变量
+LVal : T_ID ;
+
+```
+
+### 1.2.3. 递归下降分析法使用的文法
+
+要想通过递归下降分析法实现语法的识别，其文法必须满足LL(1)文法的要求。
+
+以antlr4的文法为基础，下面阐述如何构造出满足LL(1)文法要求的文法。
+
+1. 非终结符compileUnit的分析
+
+编译单元识别，也就是文法的开始符号，其antlr4中定义的文法如下：
+```antlr
+compileUnit: (funcDef | varDecl)* EOF
+funcDef: T_INT T_ID T_L_PAREN T_R_PAREN block
+varDecl: basicType varDef (T_COMMA varDef)* T_SEMICOLON
+```
+
+因funcDef的First集合为T_INT，varDecl的First集合也为T_INT，不可区分，不是LL(1)文法，
+继续检查两者定义的第二个记号都为T_ID，不可区分；再检查第三个记号，funcDef为左小括号，
+变量声明varDecl可以为逗号，可以为等号，可以为分号，从中可以看出从第三个记号开始funcDef和varDecl可以区分。
+
+因此可改造后的compileUnit的产生式为：
+```antlr
+compileUnit : { T_INT T_ID idtail }
+```
+其中大括号代表闭包，类似上面的antlr或者EBNF的*。
+
+非终结符idtail代表T_ID尾部可能的符号串，因此idtail的产生式可定义为：
+```antlr
+idtail : varDeclList | T_L_PAREN T_R_PAREN block
+```
+
+非终结符varDeclList可以定义多个变量，每次都在尾部增加一个逗号和标识符，直到最后一个记号为分号，即
+```antlr
+varDeclList : T_COMMA T_ID <varDeclList> | T_SEMICOLON
+```
+
+经过分析最终适合LL(1)文法的产生式为：
+
+```antlr
+compileUnit -> { T_INT T_ID idtail } EOF
+idtail : varDeclList | T_L_PAREN T_R_PAREN block
+varDeclList : T_COMMA T_ID varDeclList | T_SEMICOLON
+```
+
+2. 非终结符block的分析
+
+block的antlr4中的文法：
+```antlr
+block: T_L_BRACE blockItemList? T_R_BRACE;
+```
+只有一个产生式，满足LL(1)文法，不需要改造，可通过分支来区分?。
+
+3. 非终结符blockItemList的分析
+
+blockItemList的antlr4中的文法：
+```antlr
+blockItemList: blockItem+;
+```
+只有一个产生式，满足LL(1)文法，不需要改造，可通过循环来实现+。
+
+4. 非终结符blockItem、varDecl和statement的分析
+
+blockItem的antlr4中的文法：
+```antlr
+blockItem: statement | varDecl;
+varDecl : T_INT T_ID varDeclList
+statement:T_RETURN expr T_SEMICOLON | lVal T_ASSIGN expr T_SEMICOLON | block | expr? T_SEMICOLON
+```
+
+```
+FIRST(varDecl)=FIRST(T_INT T_ID varDeclList)={T_INT}
+```
+
+```
+FIRST(statement)
+= FIRST(T_RETURN expr T_SEMICOLON) ∪ FIRST(lVal T_ASSIGN expr T_SEMICOLON) ∪ FIRST(block) ∪ FIRST(expr? T_SEMICOLON)
+= {T_RETURN} ∪ {T_ID} ∪ {T_L_BRACE} ∪ {T_ID, T_L_PAREN, T_SEMICOLON}
+= {T_RETURN，T_ID，T_L_BRACE, T_L_PAREN，T_SEMICOLON}
+```
+
+从中可以看出FIRST(varDecl)与FIRST(statement)的集合不交，因此，非终结符号blockItem满足LL(1)文法。
+
+非终结符varDecl只有一个产生式，满足LL(1)文法要求。
+
+但是非终结符statement的各个产生式的FRIST集合存在交集的可能，即：FIRST(lVal T_ASSIGN expr T_SEMICOLON) ∩ FIRST(expr? T_SEMICOLON) = {T_ID}，因此非终结符statement的文法必须改造。
+
+改造后的文法为：
+```antlr
+statement: returnStatement | block | T_SEMICOLON | assignExprStmt T_SEMICOLON
+returnStatement : T_RETURN expr T_SEMICOLON
+assignExprStmt : expr assignExprStmtTail
+assignExprStmtTail : T_ASSIGN expr | ε
+```
+
+FOLLOW(assignExprStmtTail) = {T_SEMICOLON}
+
+FIRST(T_ASSIGN expr) = {T_ASSIGN}
+
+两者不交，因此非终结符assignExprStmtTail满足LL(1)文法的要求。
+
+因此改造后满足LL(1)文法要求的文法为：
+```antlr
+blockItem: statement | varDecl;
+varDecl : T_INT T_ID varDeclList
+statement: returnStatement | block | T_SEMICOLON | assignExprStmt T_SEMICOLON
+returnStatement : T_RETURN expr T_SEMICOLON
+assignExprStmt : expr assignExprStmtTail
+assignExprStmtTail : T_ASSIGN expr | ε
+```
+
+5. 非终结符expr的分析
+
+```antlr
+expr: addExp;
+addExp: unaryExp (addOp unaryExp)*;
+unaryExp: primaryExp | T_ID T_L_PAREN realParamList? T_R_PAREN ;
+primaryExp: T_DIGIT | T_L_PAREN expr T_R_PAREN | lVal ;
+lVal: T_ID
+```
+
+对于非终结符unaryExp的产生式右侧的FIRST集合有FIRST(primaryExp)和FIRST(T_ID T_L_PAREN realParamList? T_R_PAREN)。
+只要两者的FIRST集合不交，就可满足LL(1)文法要求。
+
+```
+FIRST(primaryExp) = FIRST(T_DIGIT) ∪ FIRST(T_L_PAREN expr T_R_PAREN) ∪ FIRST(lVal)
+FIRST(T_DIGIT) = {T_DIGIT}
+FIRST(T_L_PAREN expr T_R_PAREN) = {T_L_PAREN}
+FIRST(lVal) = FIRST(T_ID) = {T_ID}
+```
+
+从上面的计算可得
+```
+FIRST(primaryExp) = {T_DIGIT, T_L_PAREN, T_ID}
+FIRST(T_ID T_L_PAREN realParamList? T_R_PAREN) = {T_ID}
+```
+
+从中可知非终结符unaryExp的产生式右侧符号串的FIRST集合有交集，即
+```
+FIRST(primaryExp) ∩ {T_ID T_L_PAREN realParamList? T_R_PAREN}
+= {T_DIGIT, T_L_PAREN, T_ID} ∩ {T_ID}
+= {T_ID}
+```
+
+因为有关unaryExp的文法不满足LL(1)文法要求，必须改造，改造后的文法为：
+```antlr
+expr: addExp;
+addExp: unaryExp (addOp unaryExp)*;
+unaryExp: T_DIGIT | T_L_PAREN expr T_R_PAREN | T_ID idTail ;
+idTail: T_L_PAREN realParamList? T_R_PAREN | ε ;
+realParamList: expr (T_COMMA expr)*;
+addOp: T_ADD | T_SUB;
+```
+其中idTail表示标识符ID后可以是括号，代表函数调用；可以是空串，代表简单变量；可以是中括号，代表数组（暂不支持）。
+
+这里必须要确保FOLLOW(idTail) ∩ FIRST(T_L_PAREN realParamList? T_R_PAREN)为空集，否则还不是LL(1)文法。
+```
+FIRST(T_L_PAREN realParamList? T_R_PAREN) = {T_L_PAREN}
+FOLLOW(idTail) = {T_ADD, T_SUB, T_R_PAREN, T_ASSIGN, T_SEMICOLON}。
+```
+
+T_ADD或T_SUB代表T_ID作为变量可进行加减法运算；
+
+T_R_PAREN代表T_ID可以在括号表达式里面；
+
+T_ASSIGN代表T_ID可作为左值进行被赋值；
+
+T_SEMICOLON代表一个语句尾部的表达式。
+
+从中可以看出FOLLOW(idTail) ∩ FIRST(T_L_PAREN realParamList? T_R_PAREN)为空集，满足LL(1)文法要求。
+
+很明显realParamList和addOp皆满足LL(1)文法要求。
+
+6. 最终的LL(1)文法
+
+```antlr
+compileUnit -> { T_INT T_ID idtail } EOF
+idtail : varDeclList | T_L_PAREN T_R_PAREN block
+varDeclList : T_COMMA T_ID varDeclList | T_SEMICOLON
+
+block: T_L_BRACE blockItemList? T_R_BRACE;
+blockItemList: blockItem+;
+
+blockItem: statement | varDecl;
+varDecl : T_INT T_ID varDeclList
+statement: returnStatement | block | T_SEMICOLON | assignExprStmt T_SEMICOLON
+returnStatement : T_RETURN expr T_SEMICOLON
+assignExprStmt : expr assignExprStmtTail
+assignExprStmtTail : T_ASSIGN expr | ε
+
+expr: addExp;
+addExp: unaryExp (addOp unaryExp)*;
+unaryExp: T_DIGIT | T_L_PAREN expr T_R_PAREN | T_ID idTail ;
+realParamList: expr (T_COMMA expr)*;
+addOp: T_ADD | T_SUB;
+```
+
+## 1.3. 编译器的命令格式
 
 命令格式：
 minic -S [-A | -D] [-T | -I] [-o output] [-O level] [-t cpu] source
@@ -26,7 +462,7 @@ minic -S [-A | -D] [-T | -I] [-o output] [-O level] [-t cpu] source
 选项-I指定时，输出中间IR(DragonIR)，默认输出的文件名为ir.txt，可通过-o选项来指定输出的文件。
 选项-T和-I都不指定时，按照默认的汇编语言输出，默认输出的文件名为asm.s，可通过-o选项来指定输出的文件。
 
-## 1.3. 源代码构成
+## 1.4. 源代码构成
 
 ```text
 ├── CMake
@@ -57,7 +493,7 @@ minic -S [-A | -D] [-T | -I] [-o output] [-O level] [-t cpu] source
 └── utils                       集合、位图等共同的代码
 ```
 
-## 1.4. 程序构建
+## 1.5. 程序构建
 
 请使用VSCode + WSL/Container/SSH + Ubuntu 22.04/20.04进行编译与程序构建。
 
@@ -74,7 +510,7 @@ clang-format和clang-tidy会利用根文件夹下的.clang-format和.clang-tidy�
 sudo apt install -y clang-format clang-tidy
 ```
 
-### 1.4.1. cmake插件构建
+### 1.5.1. cmake插件构建
 
 在导入本git代码后，VSCode在右下角提示安装推荐的插件，一定要确保安装。若没有提示，重新打开尝试。
 
@@ -93,7 +529,7 @@ cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER:FILEPATH=/usr/
 cmake --build build --parallel
 ```
 
-## 1.5. 使用方法
+## 1.6. 使用方法
 
 在Ubuntu 22.04平台上运行。支持的命令如下所示：
 
@@ -119,19 +555,19 @@ cmake --build build --parallel
 
 ```
 
-## 1.6. 工具
+## 1.7. 工具
 
 本实验所需要的工具或软件在实验一环境准备中已经安装，这里不需要再次安装。
 
 这里主要介绍工具的功能。
 
-### 1.6.1. Flex 与 Bison
+### 1.7.1. Flex 与 Bison
 
-#### 1.6.1.1. Windows
+#### 1.7.1.1. Windows
 
 在Widnows平台上请使用MinGW进行开发，不建议用 Visual Studio。若确实想用，请用win_flex和win_bison工具。
 
-#### 1.6.1.2. MinGW、Linux or Mac
+#### 1.7.1.2. MinGW、Linux or Mac
 
 ```shell
 flex -o MiniCFlex.cpp --header-file=MiniCFlex.h minic.l
@@ -140,7 +576,7 @@ bison -o MinicBison.cpp --header=MinicBison.h -d minic.y
 
 请注意 bison 的--header 在某些平台上可能是--defines，要根据情况调整指定。
 
-### 1.6.2. Antlr 4.12.0
+### 1.7.2. Antlr 4.12.0
 
 要确认java15 以上版本的 JDK，否则编译不会通过。默认已经安装了JDK 17的版本。
 
@@ -158,19 +594,19 @@ C++使用 antlr 时需要使用 antlr 的头文件和库，在 msys2 下可通�
 pacman -U https://mirrors.ustc.edu.cn/msys2/mingw/mingw64/mingw-w64-x86_64-antlr4-runtime-cpp-4.12.0-1-any.pkg.tar.zst
 ```
 
-### 1.6.3. Graphviz
+### 1.7.3. Graphviz
 
 借助该工具提供的C语言API实现抽象语法树的绘制。
 
-### 1.6.4. doxygen
+### 1.7.4. doxygen
 
 借助该工具分析代码中的注释，产生详细分析的文档。这要求注释要满足一定的格式。具体可参考实验文档。
 
-### 1.6.5. texlive
+### 1.7.5. texlive
 
 把doxygen生成的文档转换成pdf格式。
 
-## 1.7. 根据注释生成文档
+## 1.8. 根据注释生成文档
 
 请按照实验的文档要求编写注释，可通过doxygen工具生成网页版的文档，借助latex可生成pdf格式的文档。
 
@@ -188,13 +624,13 @@ cd doc/latex
 make
 ```
 
-## 1.8. 实验运行
+## 1.9. 实验运行
 
 tests 目录下存放了一些简单的测试用例。
 
 由于 qemu 的用户模式在 Window 系统下不支持，因此要么在真实的开发板上运行，或者用 Linux 系统下的 qemu 来运行。
 
-### 1.8.1. 调试运行
+### 1.9.1. 调试运行
 
 由于默认的gdb或者lldb调试器对C++的STL模版库提供的类如string、map等的显示不够友好，
 因此请大家确保安装vadimcn.vscode-lldb插件，也可以更新最新的代码后vscode会提示安装推荐插件后自动安装。
@@ -204,7 +640,7 @@ tests 目录下存放了一些简单的测试用例。
 
 调试运行配置可参考.vscode/launch.json中的配置。
 
-### 1.8.2. 生成中间IR(DragonIR)与运行
+### 1.9.2. 生成中间IR(DragonIR)与运行
 
 前提需要下载并安装IRCompiler工具。
 
@@ -217,7 +653,7 @@ tests 目录下存放了一些简单的测试用例。
 第一条指令通过minic编译器来生成的汇编test1-1.ir
 第二条指令借助IRCompiler工具实现对生成IR的解释执行。
 
-### 1.8.3. 生成 ARM32 的汇编
+### 1.9.3. 生成 ARM32 的汇编
 
 ```shell
 # 翻译 test1-1.c 成 ARM32 汇编
@@ -230,7 +666,7 @@ arm-linux-gnueabihf-gcc -S -o tests/test1-1-1.s tests/test1-1.c
 
 在调试运行时可通过对比检查所实现编译器的问题。
 
-### 1.8.4. 生成可执行程序
+### 1.9.4. 生成可执行程序
 
 通过 gcc 的 arm 交叉编译器对生成的汇编进行编译，生成可执行程序。
 
@@ -248,7 +684,7 @@ arm-linux-gnueabihf-gcc -static -g -o tests/test1-1-1 tests/test1-1-1.s
 
 ![godbolt 效果图](./doc/figures/godbolt-test1-1-arm32-gcc.png)
 
-### 1.8.5. 运行可执行程序
+### 1.9.5. 运行可执行程序
 
 借助用户模式的 qemu 来运行，arm 架构可使用 qemu-arm-static 命令。
 
@@ -273,14 +709,14 @@ qemu-arm-static tests/test1-1-0 < A.in > A.out
 qemu-arm-static tests/test1-1-1 < A.in > A.out
 ```
 
-## 1.9. qemu 的用户模式
+## 1.10. qemu 的用户模式
 
 qemu 的用户模式下可直接运行交叉编译的用户态程序。这种模式只在 Linux 和 BSD 系统下支持，Windows 下不支持。
 因此，为便于后端开发与调试，请用 Linux 系统进行程序的模拟运行与调试。
 
-## 1.10. qemu 用户程序调试
+## 1.11. qemu 用户程序调试
 
-### 1.10.1. 安装 gdb 调试器
+### 1.11.1. 安装 gdb 调试器
 
 该软件 gdb-multiarch 在前面工具安装时已经安装。如没有，则通过下面的命令进行安装。
 
@@ -288,7 +724,7 @@ qemu 的用户模式下可直接运行交叉编译的用户态程序。这种模
 sudo apt-get install -y gdb-multiarch
 ```
 
-### 1.10.2. 启动具有 gdbserver 功能的 qemu
+### 1.11.2. 启动具有 gdbserver 功能的 qemu
 
 假定通过交叉编译出的程序为 tests/test1，执行的命令如下：
 
@@ -299,7 +735,7 @@ qemu-arm-static -g 1234 tests/test1
 
 其中-g 指定远程调试的端口，这里指定端口号为 1234，这样 qemu 会开启 gdb 的远程调试服务。
 
-### 1.10.3. 启动 gdb 作为客户端远程调试
+### 1.11.3. 启动 gdb 作为客户端远程调试
 
 建议通过 vscode 的调试，选择 Qemu Debug 进行调试，可开启图形化调试界面。
 
@@ -322,7 +758,7 @@ c
 
 在调试完毕后前面启动的 qemu-arm-static 程序会自动退出。因此，要想重新调试，请启动第一步的 qemu-arm-static 程序。
 
-## 1.11. 源程序打包
+## 1.12. 源程序打包
 
 在执行前，请务必通过cmake进行build成功，这样会在build目录下生成CPackSourceConfig.cmake文件。
 
@@ -336,6 +772,6 @@ cpack --config CPackSourceConfig.cmake
 
 可根据需要调整CMakeLists.txt文件的CPACK_SOURCE_IGNORE_FILES用于忽略源代码文件夹下的某些文件夹或者文件。
 
-## 1.12. 二进制程序打包
+## 1.13. 二进制程序打包
 
 可在VScode页面下的状态栏上单击Run Cpack即可在build产生zip和tar.gz格式的压缩包，里面包含编译出的可执行程序。

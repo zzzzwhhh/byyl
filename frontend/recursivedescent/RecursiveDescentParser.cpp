@@ -462,7 +462,7 @@ static void varDeclList(ast_node * vardeclstmt_node)
 ///
 /// @return ast_node* 局部变量声明节点
 ///
-static ast_node * localVarDecl()
+static ast_node * varDecl()
 {
     if (F(T_INT)) {
 
@@ -503,15 +503,16 @@ static ast_node * localVarDecl()
 /// varDecl的FIRST集合为{T_INT}，
 /// statement的FIRST集合为{T_RETURN，T_ID，T_L_PAREN，T_SEMICOLON}
 /// FIRST集合不交，可正常识别
-/// 为了和antlr4中的varDecl有所区别，并且这里指的是局部变量，因此这里用localVarDecl替换它。
 /// 最终的文法为：
-/// blockItem: statement | localVarDecl
-/// localVarDecl : T_INT T_ID varDeclList
+/// blockItem: statement | varDecl
+/// varDecl : T_INT T_ID varDeclList
 /// statement:T_RETURN expr T_SEMICOLON | lVal T_ASSIGN expr T_SEMICOLON | block | expr? T_SEMICOLON
+/// @return 返回AST的节点
+///
 static ast_node * BlockItem()
 {
     if (F(T_INT)) {
-        return localVarDecl();
+        return varDecl();
     } else {
         return statement();
     }
@@ -620,7 +621,7 @@ static ast_node * idtail(type_attr & type, var_id_attr & id)
 // 因funcDef的First集合为T_INT，varDecl的First集合也为T_INT，不可区分，不是LL(1)文法，
 // 再看第二个记号，第二个都是标识符，也不可区分
 // 再检查第三个记号，funcDef为左小括号，变量声明可以为逗号，可以为等号，可以为分号，可以区分
-// 因此可改造为 compileUnit : { T_INT T_ID <idtail> }，其中大括号代表闭包，类似上面的*
+// 因此可改造为 compileUnit : { T_INT T_ID idtail }，其中大括号代表闭包，类似上面的*
 // idtail : varDeclList | T_L_PAREN T_R_PAREN block
 // varDeclList可以定义多个变量，每次都增加一个逗号和标识符，直到最后一个记号为分号，即
 // varDeclList : T_COMMA T_ID <varDeclList> | T_SEMICOLON
