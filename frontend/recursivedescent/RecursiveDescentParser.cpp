@@ -24,6 +24,9 @@
 // 定义全局变量给词法分析使用，用于填充值
 RDSType rd_lval;
 
+// 词法识别的记号值，原始文本字符串
+extern std::string tokenValue;
+
 // 语法分析过程中的错误数目
 static int errno_num = 0;
 
@@ -97,59 +100,77 @@ static void semerror(const char * format, ...)
 /// @brief 实参列表语法分析，文法: realParamList: expr (T_COMMA expr)*;
 /// @return ast_node* 实参列表节点
 ///
-static ast_node * realParamList()
+static void realParamList(ast_node * realParamsNode)
 {
+    // 实参表达式expr识别
     ast_node * param_node = expr();
     if (!param_node) {
-        // 不是合法的参数，则返回空指针
-        return nullptr;
+
+        // 不是合法的实参
+        return;
     }
 
-    // 创建实参列表节点
-    ast_node * realParamsNode = create_contain_node(ast_operator_type::AST_OP_FUNC_REAL_PARAMS, param_node);
+    // 实参作为孩子插入到父节点realParamsNode中
+    (void) realParamsNode->insert_son_node(param_node);
 
+    // 后续是一个闭包(T_COMMA expr)*，即循环，不断的识别逗号与实参
     for (;;) {
+
+        // 识别逗号
         if (match(T_COMMA)) {
 
-            // 进行后续实参的分析
+            // 识别实参
             param_node = expr();
 
-            realParamsNode->insert_son_node(param_node);
+            (void) realParamsNode->insert_son_node(param_node);
         } else {
+
             // 不是逗号，则说明没有实参，可终止循环
+
             break;
         }
     }
-
-    return realParamsNode;
 }
 
 ///
-/// @brief 识别ID尾部符号，可以是括号，代表函数调用，可以是中括号，代表数组（暂不支持），可以是空串
+/// @brief 识别ID尾部符号，可以是括号，代表函数调用；可以是中括号，代表数组（暂不支持）；可以是空串，代表简单变量
 /// 其文法为 idTail: T_L_PAREN realParamList? T_R_PAREN | ε
 /// @return ast_node*
 ///
 static ast_node * idTail(var_id_attr & id)
 {
     // 标识符节点
-    ast_node * node = ast_node::New(id.id, id.lineno);
+    ast_node * node = ast_node::New(id);
 
-    // 对于字符型字面量的字符串空间需要释放，因词法用到了strdup进行了字符串复制
+    // 对于字符型字面量的字符串空间需要释放，因词法用到了strdup进行了字符串空间的分配
     free(id.id);
     id.id = nullptr;
 
     if (match(T_L_PAREN)) {
-        // 函数调用
 
-        ast_node * paramListNode = realParamList();
+        // 函数调用，idTail: T_L_PAREN realParamList? T_R_PAREN
+
+        ast_node * realParamsNode = create_contain_node(ast_operator_type::AST_OP_FUNC_REAL_PARAMS);
+
+        if (match(T_R_PAREN)) {
+
+            // 被调用函数没有实参，返回一个空的实参清单节点
+            return realParamsNode;
+        }
+
+        // 识别实参列表
+        realParamList(realParamsNode);
 
         if (!match(T_R_PAREN)) {
             semerror("函数调用缺少右括号");
         }
 
-        node = create_func_call(node, paramListNode);
+        // 创建函数调用节点
+        node = create_func_call(node, realParamsNode);
     } else {
-        // 变量ID，已经创建，可直接使用
+        // 变量ID，idTail -> ε
+
+        // 前面已经创建，可直接使用，无动作
     }
 
     return node;
@@ -158,13 +179,15 @@ static ast_node * idTail(var_id_attr & id)
 ///
 /// @brief 一元表达式文法识别，其文法为
 /// unaryExp: primaryExp | T_ID T_L_PAREN realParamList? T_R_PAREN
-/// primaryExp: T_L_PAREN expr T_R_PAREN | T_DIGIT | lVal
+/// primaryExp: T_DIGIT | T_L_PAREN expr T_R_PAREN | lVal
 /// lVal: T_ID
 /// 因primaryExp的FIRST集合包含T_ID，因此该文法产生式不是LL(1)的，需要进行改造
 /// 改造后的文法为：
-/// unaryExp: T_L_PAREN expr T_R_PAREN | T_DIGIT | T_ID idTail
+/// unaryExp: T_DIGIT | T_L_PAREN expr T_R_PAREN | T_ID idTail
 /// idTail: T_L_PAREN realParamList? T_R_PAREN | ε
-/// 其中idTail表示标识符ID后可以是括号，代表函数调用，可以是中括号，代表数组（暂不支持），可以是空串
+/// 其中idTail表示标识符ID后可以是括号，代表函数调用；
+/// 可以是中括号，代表数组（暂不支持）；
+/// 可以是空串，代表简单变量。
 /// @return ast_node*
 ///
 static ast_node * unaryExp()
@@ -172,7 +195,8 @@ static ast_node * unaryExp()
     ast_node * node = nullptr;
 
     if (F(T_DIGIT)) {
-        // 无符号整数
+
+        // 无符号整数，primaryExp: T_DIGIT
 
         node = ast_node::New(rd_lval.integer_num);
 
@@ -180,7 +204,8 @@ static ast_node * unaryExp()
         advance();
 
     } else if (match(T_L_PAREN)) {
-        // 括号表达式
+
+        // 括号表达式，primaryExp: T_L_PAREN expr T_R_PAREN
 
         // 括号内表达式识别
         node = expr();
@@ -189,8 +214,10 @@ static ast_node * unaryExp()
             semerror("缺少右括号");
         }
     } else if (F(T_ID)) {
-        // ID开头的表达式，可以是函数调用，也可以是数组，或者变量名
-        var_id_attr id = rd_lval.var_id;
+
+        // ID开头的表达式，可以是函数调用，也可以是数组(目前不支持)，或者简单变量，primaryExp: T_ID idTail
+
+        var_id_attr & id = rd_lval.var_id;
 
         // 跳过当前记号，指向下一个记号
         advance();
@@ -208,16 +235,21 @@ static ast_node * unaryExp()
 ///
 ast_operator_type addOp()
 {
-    ast_operator_type type;
+    ast_operator_type type = ast_operator_type::AST_OP_MAX;
 
     if (F(T_ADD)) {
-        type = ast_operator_type::AST_OP_ADD;
-    } else {
-        type = ast_operator_type::AST_OP_SUB;
-    }
 
-    // 跳过当前的记号，指向下一个记号
-    advance();
+        type = ast_operator_type::AST_OP_ADD;
+
+        // 跳过当前的记号，指向下一个记号
+        advance();
+    } else if (F(T_SUB)) {
+
+        type = ast_operator_type::AST_OP_SUB;
+
+        // 跳过当前的记号，指向下一个记号
+        advance();
+    }
 
     return type;
 }
@@ -230,30 +262,30 @@ ast_operator_type addOp()
 ///
 static ast_node * addExp()
 {
-    // 加减运算的左侧表达式分析
+    // 识别第一个unaryExp
     ast_node * left_node = unaryExp();
+    if (!left_node) {
+        // 非法的一元表达式
+        return nullptr;
+    }
 
-    // 循环退出条件
-    // 1) 不是二元加减运算符
-    // 2) 语法错误
+    // 识别闭包(addOp unaryExp)*，循环
+    // 循环退出条件，1) 不是二元加减运算符， 2) 语法错误
     for (;;) {
 
-        // 检查是否是二元加减运算符
-        if (!(F(T_ADD) _(T_SUB))) {
+        // 获取加减运算符
+        ast_operator_type op = addOp();
+        if (ast_operator_type::AST_OP_MAX == op) {
 
             // 不是加减运算符则正常结束
             break;
         }
 
-        // 获取加减运算符
-        // 这里的运算符肯定有效，因为前面已经检查过
-        ast_operator_type op = addOp();
-
         // 获取右侧表达式
         ast_node * right_node = unaryExp();
         if (!right_node) {
-            // 右侧表达式不存在，则说明语法错误
-            semerror("二元运算不存在右操作数");
+
+            // 二元加减运算没有合法的右侧表达式
             break;
         }
 
@@ -356,17 +388,19 @@ static ast_node * statement()
     ast_node * node = nullptr;
     if (F(T_RETURN)) {
 
-        // Return语句
+        // Return语句，识别产生式statement: returnStatement
         node = returnStatement();
     } else if (F(T_L_BRACE)) {
 
-        // 语句块
+        // 语句块，识别产生式statement: block
         node = Block();
     } else if (F(T_SEMICOLON)) {
 
-        // 空语句
+        // 空语句，识别产生式statement: T_SEMICOLON
         advance();
     } else if (F(T_ID) _(T_L_PAREN) _(T_DIGIT)) {
+
+        // 赋值语句，statement -> assignExprStmt T_SEMICOLON
 
         // assignExprStmt的FIRST集合为{T_ID, T_L_PAREN, T_DIGIT}
 
@@ -549,23 +583,23 @@ static ast_node * idtail(type_attr & type, var_id_attr & id)
     if (match(T_L_PAREN)) {
         // 函数定义
 
-		// 目前函数定义没有形参，因此必须是右小括号
+        // 目前函数定义没有形参，因此必须是右小括号
         if (match(T_R_PAREN)) {
-		
-			// 识别block
-			ast_node * blockNode = Block();
 
-			// 形参结点没有，设置为空指针
-			ast_node * formalParamsNode = nullptr;
+            // 识别block
+            ast_node * blockNode = Block();
 
-			// 创建函数定义的节点，孩子有类型，函数名，语句块和形参(实际上无)
-			// create_func_def函数内会释放id中指向的标识符空间，切记，之后不要再释放，之前一定要是通过strdup函数或者malloc分配的空间
-			return create_func_def(type, id, blockNode, formalParamsNode);
+            // 形参结点没有，设置为空指针
+            ast_node * formalParamsNode = nullptr;
+
+            // 创建函数定义的节点，孩子有类型，函数名，语句块和形参(实际上无)
+            // create_func_def函数内会释放id中指向的标识符空间，切记，之后不要再释放，之前一定要是通过strdup函数或者malloc分配的空间
+            return create_func_def(type, id, blockNode, formalParamsNode);
         } else {
             semerror("函数定义缺少右小括号");
         }
-		
-		return nullptr;
+
+        return nullptr;
     }
 
     // 这里只能是变量定义
