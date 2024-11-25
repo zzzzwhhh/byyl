@@ -20,7 +20,6 @@
 #include "Antlr4CSTVisitor.h"
 #include "AST.h"
 #include "AttrType.h"
-#include "IntegerType.h"
 
 #define Instanceof(res, type, var) auto res = dynamic_cast<type>(var)
 

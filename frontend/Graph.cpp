@@ -58,7 +58,7 @@ string getNodeName(ast_node * astnode)
             nodeName = "compile-unit";
             break;
         case ast_operator_type::AST_OP_FUNC_FORMAL_PARAMS:
-            nodeName = "formal_params";
+            nodeName = "formal-params";
             break;
         case ast_operator_type::AST_OP_VAR_DECL:
             nodeName = "var-decl";
@@ -79,7 +79,7 @@ string getNodeName(ast_node * astnode)
             nodeName = "func-call";
             break;
         case ast_operator_type::AST_OP_FUNC_REAL_PARAMS:
-            nodeName = "real_params";
+            nodeName = "real-params";
             break;
             // TODO 这里追加其它类型的结点，返回对应结点的字符串
 

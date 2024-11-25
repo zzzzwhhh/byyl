@@ -46,9 +46,10 @@ void yyerror(char * msg);
 
 // 分隔符 一词一类 不需要赋予语义属性
 %token T_SEMICOLON T_L_PAREN T_R_PAREN T_L_BRACE T_R_BRACE
+%token T_COMMA
 
 // 运算符
-%token T_ASSIGN T_COMMA T_SUB T_ADD
+%token T_ASSIGN T_SUB T_ADD
 
 // 非终结符
 // %type指定文法的非终结符号，<>可指定文法属性
@@ -138,15 +139,15 @@ Block : T_L_BRACE T_R_BRACE {
 // Bison不支持正闭包，需修改成左递归形式，便于属性的传递与孩子节点的追加
 // 左递归形式的文法为：BlockItemList : BlockItem | BlockItemList BlockItem
 BlockItemList : BlockItem {
-        // 第一个左侧的孩子节点归约成Block节点，后续语句可持续作为孩子追加到Block节点中
-        // 创建一个AST_OP_BLOCK类型的中间节点，孩子为Statement($1)
+		// 第一个左侧的孩子节点归约成Block节点，后续语句可持续作为孩子追加到Block节点中
+		// 创建一个AST_OP_BLOCK类型的中间节点，孩子为Statement($1)
 		$$ = create_contain_node(ast_operator_type::AST_OP_BLOCK, $1);
-    }
+	}
 	| BlockItemList BlockItem {
 		// 把BlockItem归约的节点加入到BlockItemList的节点中
 		$$ = $1->insert_son_node($2);
 	}
-    ;
+	;
 
 
 // 语句块中子项的文法：BlockItem : Statement
