@@ -24,7 +24,19 @@ antlr4解析器使用了Adaptive LL(*)的全新解析技术，采用动态分析
 antlr4实现的文法相比文法LL(1)，简单了很多，大家可通过阅读下文的递归下降分析法使用的文法内容就可知道antlr4的好处。
 
 ```antlr
-// 源文件编译单元定义
+grammar MiniC;
+
+// 词法规则名总是以大写字母开头
+
+// 语法规则名总是以小写字母开头
+
+// 每个非终结符尽量多包含闭包、正闭包或可选符等的EBNF范式描述
+
+// 若非终结符由多个产生式组成，则建议在每个产生式的尾部追加# 名称来区分，详细可查看非终结符statement的描述
+
+// 语法规则描述：EBNF范式
+
+// 源文件编译单元定义，目前只支持一个函数定义。 如需要支持多个，请修改语法产生式
 compileUnit: (funcDef | varDecl)* EOF;
 
 // 函数定义，目前不支持形参，也不支持返回void类型等
@@ -104,7 +116,8 @@ WS: [ \r\n\t]+ -> skip;
 
 ### 1.2.2. flex词法
 
-这里只是返回Token类别的Flex脚本。
+flex用于词法的识别，里面主要写正规式，在识别出正规式描述的单词后返回Token的类别码，同时把Token的值设置到yylval中。
+为便于定义，也设置了行号信息等。
 
 ```lex
 "("         { return T_L_PAREN; }
@@ -119,14 +132,43 @@ WS: [ \r\n\t]+ -> skip;
 "+"         { return T_ADD; }
 "-"         { return T_SUB; }
 
-"0"|[1-9][0-9]*	{ return T_DIGIT; }
+"0"|[1-9][0-9]*	{
+                // 词法识别无符号整数，注意对于负数，则需要识别为负号和无符号数两个Token
+                yylval.integer_num.val = (uint32_t)strtol(yytext, (char **)NULL, 10);
+                yylval.integer_num.lineno = yylineno;
+                return T_DIGIT;
+            }
 
-"int"       { return T_INT; }
-"return"    { return T_RETURN; }
-[a-zA-Z_]+[0-9a-zA-Z_]* { return T_ID; }
+"int"       {
+                // int类型关键字 关键字的识别要在标识符识别的前边，这是因为关键字也是标识符，不过是保留的
+                yylval.type.type = BasicType::TYPE_INT;
+                yylval.type.lineno = yylineno;
+                return T_INT;
+            }
 
-[\t\040]+   { ; }
-[\r\n]+     { ; }
+"return"    {
+                // return关键字 关键字的识别要在标识符识别的前边，，这是因为关键字也是标识符，不过是保留的
+                return T_RETURN;
+            }
+
+[a-zA-Z_]+[0-9a-zA-Z_]* {
+                // strdup 分配的空间需要在使用完毕后使用free手动释放，否则会造成内存泄漏
+                yylval.var_id.id = strdup(yytext);
+                yylval.var_id.lineno = yylineno;
+                return T_ID;
+            }
+
+
+[\t\040]+   {
+                /* \040代表8进制的32的识别，也就是空格字符 */
+                // 空白符号忽略
+                ;
+            }
+
+[\r\n]+     {
+                // 空白行忽略
+                ;
+            }
 ```
 
 ### 1.2.3. Bison语法
@@ -709,23 +751,29 @@ arm-linux-gnueabihf-gcc -static -g -o tests/test1-1-1 tests/test1-1-1.s
 
 ```shell
 qemu-arm-static tests/test1-1-0
+echo $?
 qemu-arm-static tests/test1-1-1
+echo $?
 ```
 
-这里可比较运行的结果，如果两者不一致，则编写的编译器程序有问题。
+这里可比较运行的结果(即通过指令echo $?获取main函数的返回值，注意截断8位的无符号整数)，如果两者不一致，则编写的编译器程序有问题。
 
 如果测试用例源文件程序需要输入，假定输入的内容在文件A.in中，则可通过以下方式运行。
 
 ```shell
 qemu-arm-static tests/test1-1-0 < A.in
+echo $?
 qemu-arm-static tests/test1-1-1 < A.in
+echo $?
 ```
 
 如果想把输出的内容写到文件中，可通过重定向符号>来实现，假定输入到B.out文件中。
 
 ```shell
 qemu-arm-static tests/test1-1-0 < A.in > A.out
+echo $?
 qemu-arm-static tests/test1-1-1 < A.in > A.out
+echo $?
 ```
 
 ## 1.10. qemu 的用户模式
