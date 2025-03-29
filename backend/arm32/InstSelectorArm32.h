@@ -115,6 +115,11 @@ protected:
     /// @brief 累计的实参个数
     int32_t realArgCount = 0;
 
+    ///
+    /// @brief 显示IR指令内容
+    ///
+    bool showLinearIR = false;
+
 public:
     /// @brief 构造函数
     /// @param _irCode IR指令
@@ -125,7 +130,19 @@ public:
                       Function * _func,
                       SimpleRegisterAllocator & allocator);
 
+    ///
+    /// @brief 析构函数
+    ///
     ~InstSelectorArm32();
+
+    ///
+    /// @brief 设置是否输出线性IR的内容
+    /// @param show true显示，false显示
+    ///
+    void setShowLinearIR(bool show)
+    {
+        showLinearIR = show;
+    }
 
     /// @brief 指令选择
     void run();

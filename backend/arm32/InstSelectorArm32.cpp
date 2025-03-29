@@ -29,11 +29,6 @@
 #include "FuncCallInstruction.h"
 #include "MoveInstruction.h"
 
-///
-/// @brief 引用main.c的全局变量，为了便于控制
-///
-extern bool gAsmAlsoShowIR;
-
 /// @brief 构造函数
 /// @param _irCode 指令
 /// @param _iloc ILoc
@@ -93,7 +88,7 @@ void InstSelectorArm32::translate(Instruction * inst)
     }
 
     // 开启时输出IR指令作为注释
-    if (gAsmAlsoShowIR) {
+    if (showLinearIR) {
         outputIRInstruction(inst);
     }
 

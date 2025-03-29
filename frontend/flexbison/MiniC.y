@@ -74,10 +74,10 @@ void yyerror(char * msg);
 // compileUnit: funcDef | varDecl | compileUnit funcDef | compileUnit varDecl
 CompileUnit : FuncDef {
 
-	        // 创建一个编译单元的节点AST_OP_COMPILE_UNIT
-	        $$ = create_contain_node(ast_operator_type::AST_OP_COMPILE_UNIT, $1);
+		// 创建一个编译单元的节点AST_OP_COMPILE_UNIT
+		$$ = create_contain_node(ast_operator_type::AST_OP_COMPILE_UNIT, $1);
 
-	        // 设置到全局变量中
+		// 设置到全局变量中
 		ast_root = $$;
 	}
 	| VarDecl {
@@ -236,7 +236,7 @@ Statement : T_RETURN Expr T_SEMICOLON {
 		// 内部已创建block节点，直接传递给Statement
 		$$ = $1;
 	}
-	|Expr T_SEMICOLON {
+	| Expr T_SEMICOLON {
 		// 表达式语句
 
 		// 内部已创建表达式，直接传递给Statement
@@ -322,7 +322,7 @@ UnaryExp : PrimaryExp {
 
 		// 创建函数调用名终结符节点
 		ast_node * name_node = ast_node::New(std::string($1.id), $1.lineno);
-		
+
 		// 对于字符型字面量的字符串空间需要释放，因词法用到了strdup进行了字符串复制
 		free($1.id);
 
