@@ -3,12 +3,13 @@
 ## 1.1. 编译器的功能
 
 在基本版的基础上，还支持如下的功能：
+
 1. 支持int类型的全局变量定义，不支持变量初始化设值；
 2. 函数可定义多个，但不支持形参，函数返回值仍然是int类型；
 3. 函数内支持int类型的局部变量定义，不必在语句块的开头；
 4. 支持赋值语句，不支持连续赋值；
-6. 支持语句块；
-5. 表达式支持加减、函数调用、带括号的运算；
+5. 支持语句块；
+6. 表达式支持加减、函数调用、带括号的运算；
 7. 支持内置函数putint，通过它可在终端显示对应的十进制值；
 8. 变量可重名，支持变量分层管理。
 
@@ -62,10 +63,10 @@ varDef: T_ID;
 
 // 目前语句支持return和赋值语句
 statement:
-	T_RETURN expr T_SEMICOLON           # returnStatement
-	| lVal T_ASSIGN expr T_SEMICOLON    # assignStatement
-	| block                             # blockStatement
-	| expr? T_SEMICOLON                 # expressionStatement;
+    T_RETURN expr T_SEMICOLON           # returnStatement
+    | lVal T_ASSIGN expr T_SEMICOLON    # assignStatement
+    | block                             # blockStatement
+    | expr? T_SEMICOLON                 # expressionStatement;
 
 // 表达式文法 expr : AddExp 表达式目前只支持加法与减法运算
 expr: addExp;
@@ -304,6 +305,7 @@ LVal : T_ID ;
 1. 非终结符compileUnit的分析
 
 编译单元识别，也就是文法的开始符号，其antlr4中定义的文法如下：
+
 ```antlr
 compileUnit: (funcDef | varDecl)* EOF
 funcDef: T_INT T_ID T_L_PAREN T_R_PAREN block
@@ -315,12 +317,15 @@ varDecl: basicType varDef (T_COMMA varDef)* T_SEMICOLON
 变量声明varDecl可以为逗号，可以为等号，可以为分号，从中可以看出从第三个记号开始funcDef和varDecl可以区分。
 
 因此可改造后的compileUnit的产生式为：
+
 ```antlr
 compileUnit : { T_INT T_ID idtail }
 ```
+
 其中大括号代表闭包，类似上面的antlr或者EBNF的*。
 
 非终结符idtail代表T_ID尾部可能的符号串，因此idtail的产生式可定义为：
+
 ```antlr
 idtail : varDeclList | T_L_PAREN T_R_PAREN block
 ```
@@ -341,22 +346,27 @@ varDeclList : T_COMMA T_ID varDeclList | T_SEMICOLON
 2. 非终结符block的分析
 
 block的antlr4中的文法：
+
 ```antlr
 block: T_L_BRACE blockItemList? T_R_BRACE;
 ```
+
 只有一个产生式，满足LL(1)文法，不需要改造，可通过分支来区分?。
 
 3. 非终结符blockItemList的分析
 
 blockItemList的antlr4中的文法：
+
 ```antlr
 blockItemList: blockItem+;
 ```
+
 只有一个产生式，满足LL(1)文法，不需要改造，可通过循环来实现+。
 
 4. 非终结符blockItem、varDecl和statement的分析
 
 blockItem的antlr4中的文法：
+
 ```antlr
 blockItem: statement | varDecl;
 varDecl : T_INT T_ID varDeclList
@@ -365,7 +375,8 @@ lVal: T_ID;
 ```
 
 分析非终结符的FISRT集合：
-```
+
+```text
 FIRST(varDecl)=FIRST(T_INT T_ID varDeclList)={T_INT}
 FIRST(T_RETURN expr T_SEMICOLON) = {T_RETURN}
 FIRST(lVal T_ASSIGN expr T_SEMICOLON) = FIRST(lVal) = {T_ID}
@@ -388,6 +399,7 @@ FIRST(statement)
 引入非终结符assignExprStmtTail，代表赋值右侧表达式（含赋值运算符）和空串。
 
 改造后的文法为：
+
 ```antlr
 statement: returnStatement | block | T_SEMICOLON | assignExprStmt T_SEMICOLON
 returnStatement : T_RETURN expr T_SEMICOLON
@@ -396,7 +408,8 @@ assignExprStmtTail : T_ASSIGN expr | ε
 ```
 
 分析FIRST集合和FOLLOW集合，可得：
-```
+
+```text
 FOLLOW(assignExprStmtTail) = {T_SEMICOLON}
 FIRST(T_ASSIGN expr) = {T_ASSIGN}
 ```
@@ -406,6 +419,7 @@ FIRST(T_ASSIGN expr) = {T_ASSIGN}
 同时非终结符statement也明显满足LL(1)文法的要求。
 
 因此改造后满足LL(1)文法要求的文法为：
+
 ```antlr
 blockItem: statement | varDecl;
 varDecl : T_INT T_ID varDeclList
@@ -418,6 +432,7 @@ assignExprStmtTail : T_ASSIGN expr | ε
 5. 非终结符expr的分析
 
 下面是antlr中的文法：
+
 ```antlr
 expr: addExp;
 addExp: unaryExp (addOp unaryExp)*;
@@ -429,7 +444,7 @@ lVal: T_ID
 对于非终结符unaryExp的产生式右侧的FIRST集合有FIRST(primaryExp)和FIRST(T_ID T_L_PAREN realParamList? T_R_PAREN)。
 只要两者的FIRST集合不交，就可满足LL(1)文法要求。
 
-```
+```text
 FIRST(primaryExp) = FIRST(T_DIGIT) ∪ FIRST(T_L_PAREN expr T_R_PAREN) ∪ FIRST(lVal)
 FIRST(T_DIGIT) = {T_DIGIT}
 FIRST(T_L_PAREN expr T_R_PAREN) = {T_L_PAREN}
@@ -437,19 +452,22 @@ FIRST(lVal) = FIRST(T_ID) = {T_ID}
 ```
 
 从上面的计算可得
-```
+
+```text
 FIRST(primaryExp) = {T_DIGIT, T_L_PAREN, T_ID}
 FIRST(T_ID T_L_PAREN realParamList? T_R_PAREN) = {T_ID}
 ```
 
 从中可知非终结符unaryExp的产生式右侧符号串的FIRST集合有交集，即
-```
+
+```text
 FIRST(primaryExp) ∩ {T_ID T_L_PAREN realParamList? T_R_PAREN}
 = {T_DIGIT, T_L_PAREN, T_ID} ∩ {T_ID}
 = {T_ID}
 ```
 
 因unaryExp不满足LL(1)文法要求，必须改造，改造后的文法为：
+
 ```antlr
 expr: addExp;
 addExp: unaryExp (addOp unaryExp)*;
@@ -463,7 +481,7 @@ addOp: T_ADD | T_SUB;
 
 这里必须要确保FOLLOW(idTail) ∩ FIRST(T_L_PAREN realParamList? T_R_PAREN)为空集，否则还不是LL(1)文法。
 
-```
+```text
 FIRST(T_L_PAREN realParamList? T_R_PAREN) = {T_L_PAREN}
 FOLLOW(idTail) = {T_ADD, T_SUB, T_R_PAREN, T_ASSIGN, T_SEMICOLON}。
 ```
@@ -680,6 +698,7 @@ doxygen Doxygen.config
 ```
 
 在安装texlive等latex工具后，可通过执行的下面的命令产生refman.pdf文件。
+
 ```shell
 cd doc/latex
 make
@@ -722,6 +741,7 @@ tests 目录下存放了一些简单的测试用例。
 # 把 test1-1.c 通过 arm 版的交叉编译器 gcc 翻译成汇编
 arm-linux-gnueabihf-gcc -S -o tests/test1-1-1.s tests/test1-1.c
 ```
+
 第一条命令通过minic编译器来生成的汇编test1-1-0.s
 第二条指令是通过arm-linux-gnueabihf-gcc编译器生成的汇编语言test1-1-1.s。
 
@@ -830,6 +850,7 @@ c
 在执行前，请务必通过cmake进行build成功，这样会在build目录下生成CPackSourceConfig.cmake文件。
 
 进入build目录下执行如下的命令可产生源代码压缩包，用于实验源代码的提交
+
 ```shell
 cd build
 cpack --config CPackSourceConfig.cmake
