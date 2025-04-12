@@ -642,12 +642,6 @@ cmake --build build --parallel
 
 ### 1.7.1. Flex 与 Bison
 
-#### 1.7.1.1. Windows
-
-在Widnows平台上请使用MinGW进行开发，不建议用 Visual Studio。若确实想用，请用win_flex和win_bison工具。
-
-#### 1.7.1.2. MinGW、Linux or Mac
-
 ```shell
 flex -o MiniCFlex.cpp --header-file=MiniCFlex.h minic.l
 bison -o MinicBison.cpp --header=MinicBison.h -d minic.y
@@ -659,19 +653,13 @@ bison -o MinicBison.cpp --header=MinicBison.h -d minic.y
 
 要确认java15 以上版本的 JDK，否则编译不会通过。默认已经安装了JDK 17的版本。
 
-由于cmake的bug可能会导致适配不到15以上的版本，请删除旧版的JDK。
-
 编写 g4 文件然后通过 antlr 生成 C++代码，用 Visitor 模式。
 
 ```shell
 java -jar tools/antlr-4.12.0-complete.jar -Dlanguage=Cpp -no-listener -visitor -o frontend/antlr4 frontend/antlr4/minic.g4
 ```
 
-C++使用 antlr 时需要使用 antlr 的头文件和库，在 msys2 下可通过如下命令安装 antlr 4.12.0 版即可。
-
-```shell
-pacman -U https://mirrors.ustc.edu.cn/msys2/mingw/mingw64/mingw-w64-x86_64-antlr4-runtime-cpp-4.12.0-1-any.pkg.tar.zst
-```
+C++使用 antlr 时需要使用 antlr 的头文件和库，默认的环境已经安装。
 
 ### 1.7.3. Graphviz
 
@@ -737,12 +725,12 @@ tests 目录下存放了一些简单的测试用例。
 
 ```shell
 # 翻译 test1-1.c 成 ARM32 汇编
-./build/minic -S -o tests/test1-1-0.s tests/test1-1.c
+./build/minic -S -o tests/test1-1.s tests/test1-1.c
 # 把 test1-1.c 通过 arm 版的交叉编译器 gcc 翻译成汇编
 arm-linux-gnueabihf-gcc -S -o tests/test1-1-1.s tests/test1-1.c
 ```
 
-第一条命令通过minic编译器来生成的汇编test1-1-0.s
+第一条命令通过minic编译器来生成的汇编test1-1.s
 第二条指令是通过arm-linux-gnueabihf-gcc编译器生成的汇编语言test1-1-1.s。
 
 在调试运行时可通过对比检查所实现编译器的问题。
@@ -753,7 +741,7 @@ arm-linux-gnueabihf-gcc -S -o tests/test1-1-1.s tests/test1-1.c
 
 ```shell
 # 通过 ARM gcc 编译器把汇编程序翻译成可执行程序，目标平台 ARM32
-arm-linux-gnueabihf-gcc -static -g -o tests/test1-1-0 tests/test1-1-0.s
+arm-linux-gnueabihf-gcc -static -g -o tests/test1-1 tests/test1-1.s
 # 通过 ARM gcc 编译器把汇编程序翻译成可执行程序，目标平台 ARM32
 arm-linux-gnueabihf-gcc -static -g -o tests/test1-1-1 tests/test1-1-1.s
 ```
@@ -770,7 +758,7 @@ arm-linux-gnueabihf-gcc -static -g -o tests/test1-1-1 tests/test1-1-1.s
 借助用户模式的 qemu 来运行，arm 架构可使用 qemu-arm-static 命令。
 
 ```shell
-qemu-arm-static tests/test1-1-0
+qemu-arm-static tests/test1-1
 echo $?
 qemu-arm-static tests/test1-1-1
 echo $?
@@ -781,7 +769,7 @@ echo $?
 如果测试用例源文件程序需要输入，假定输入的内容在文件A.in中，则可通过以下方式运行。
 
 ```shell
-qemu-arm-static tests/test1-1-0 < A.in
+qemu-arm-static tests/test1-1 < A.in
 echo $?
 qemu-arm-static tests/test1-1-1 < A.in
 echo $?
@@ -790,7 +778,7 @@ echo $?
 如果想把输出的内容写到文件中，可通过重定向符号>来实现，假定输入到B.out文件中。
 
 ```shell
-qemu-arm-static tests/test1-1-0 < A.in > A.out
+qemu-arm-static tests/test1-1 < A.in > A.out
 echo $?
 qemu-arm-static tests/test1-1-1 < A.in > A.out
 echo $?
@@ -813,11 +801,11 @@ sudo apt-get install -y gdb-multiarch
 
 ### 1.11.2. 启动具有 gdbserver 功能的 qemu
 
-假定通过交叉编译出的程序为 tests/test1，执行的命令如下：
+假定通过交叉编译出的程序为 tests/test1-1，执行的命令如下：
 
 ```shell
 # 启动 gdb server，监视的端口号为 1234
-qemu-arm-static -g 1234 tests/test1
+qemu-arm-static -g 1234 tests/test1-1
 ```
 
 其中-g 指定远程调试的端口，这里指定端口号为 1234，这样 qemu 会开启 gdb 的远程调试服务。
@@ -833,7 +821,7 @@ qemu-arm-static -g 1234 tests/test1
 注意这里的 gdb 要支持目标 CPU 的 gdb-multiarch，而不是本地的 gdb。
 
 ```shell
-gdb-multiarch tests/test1
+gdb-multiarch tests/test1-1
 # 输入如下的命令，远程连接 qemu 的 gdb server
 target remote localhost:1234
 # 在 main 函数入口设置断点
@@ -863,3 +851,18 @@ cpack --config CPackSourceConfig.cmake
 ## 1.13. 二进制程序打包
 
 可在VScode页面下的状态栏上单击Run Cpack即可在build产生zip和tar.gz格式的压缩包，里面包含编译出的可执行程序。
+
+## 1.14 IR的类型组织图
+
+如下图所示，描述的是Value、User、Use、Instruction等的类图。
+
+![IR的类图](doc/figures/Value-User-Use.svg)
+
+有关类型的类图如下图所示。
+
+![Type的类图](./doc/figures/Type类.png)
+
+## 1.15 VSCode中使用Antlr4
+
+具体可阅读[Antlr4使用](doc/Antlr4.md)。
+
