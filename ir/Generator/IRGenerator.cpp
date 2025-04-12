@@ -167,8 +167,7 @@ bool IRGenerator::ir_function_define(ast_node * node)
     ast_node * param_node = node->sons[2];
     ast_node * block_node = node->sons[3];
 
-    // 创建一个新的函数定义，函数的返回类型设置为VOID，待定，必须等return时才能确定，目前可以是VOID或者INT类型
-    // 请注意这个与C语言的函数定义不同。在实现MiniC编译器时必须调整
+    // 创建一个新的函数定义
     Function * newFunc = module->newFunction(name_node->name, type_node->type);
     if (!newFunc) {
         // 新定义的函数已经存在，则失败返回。
@@ -395,7 +394,6 @@ bool IRGenerator::ir_add(ast_node * node)
     }
 
     // 这里只处理整型的数据，如需支持实数，则需要针对类型进行处理
-    // TODO real number add
 
     BinaryInstruction * addInst = new BinaryInstruction(module->getCurrentFunction(),
                                                         IRInstOperator::IRINST_OP_ADD_I,
@@ -438,7 +436,6 @@ bool IRGenerator::ir_sub(ast_node * node)
     }
 
     // 这里只处理整型的数据，如需支持实数，则需要针对类型进行处理
-    // TODO real number add
 
     BinaryInstruction * subInst = new BinaryInstruction(module->getCurrentFunction(),
                                                         IRInstOperator::IRINST_OP_SUB_I,
@@ -482,7 +479,6 @@ bool IRGenerator::ir_assign(ast_node * node)
     }
 
     // 这里只处理整型的数据，如需支持实数，则需要针对类型进行处理
-    // TODO real number add
 
     MoveInstruction * movInst = new MoveInstruction(module->getCurrentFunction(), left->val, right->val);
 
@@ -521,18 +517,23 @@ bool IRGenerator::ir_return(ast_node * node)
     // 这里只处理整型的数据，如需支持实数，则需要针对类型进行处理
     Function * currentFunc = module->getCurrentFunction();
 
-    // 创建临时变量保存IR的值，以及线性IR指令
-    node->blockInsts.addInst(right->blockInsts);
+    // 返回值存在时则移动指令到node中
+    if (right) {
 
-    // 返回值赋值到函数返回值变量上，然后跳转到函数的尾部
-    node->blockInsts.addInst(new MoveInstruction(currentFunc, currentFunc->getReturnValue(), right->val));
+        // 创建临时变量保存IR的值，以及线性IR指令
+        node->blockInsts.addInst(right->blockInsts);
+
+        // 返回值赋值到函数返回值变量上，然后跳转到函数的尾部
+        node->blockInsts.addInst(new MoveInstruction(currentFunc, currentFunc->getReturnValue(), right->val));
+
+        node->val = right->val;
+    } else {
+        // 没有返回值
+        node->val = nullptr;
+    }
 
     // 跳转到函数的尾部出口指令上
     node->blockInsts.addInst(new GotoInstruction(currentFunc, currentFunc->getExitLabel()));
-
-    node->val = right->val;
-
-    // TODO 设置类型
 
     return true;
 }
