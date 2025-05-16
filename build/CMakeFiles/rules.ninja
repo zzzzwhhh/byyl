@@ -42,7 +42,7 @@ rule CUSTOM_COMMAND
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = /usr/bin/cmake --regenerate-during-build -S/home/code/exp04-minic-expr -B/home/code/exp04-minic-expr/build
+  command = /usr/bin/cmake --regenerate-during-build -S/home/code/byyl -B/home/code/byyl/build
   description = Re-running CMake...
   generator = 1
 
