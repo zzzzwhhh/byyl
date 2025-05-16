@@ -67,7 +67,15 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitMulExp(MiniCParser::MulExpContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitAddExp(MiniCParser::AddExpContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitMulOp(MiniCParser::MulOpContext *ctx) override {
     return visitChildren(ctx);
   }
 
@@ -75,7 +83,15 @@ public:
     return visitChildren(ctx);
   }
 
-  virtual std::any visitUnaryExp(MiniCParser::UnaryExpContext *ctx) override {
+  virtual std::any visitPrimaryExpRule(MiniCParser::PrimaryExpRuleContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitNegExp(MiniCParser::NegExpContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitFuncCallRule(MiniCParser::FuncCallRuleContext *ctx) override {
     return visitChildren(ctx);
   }
 

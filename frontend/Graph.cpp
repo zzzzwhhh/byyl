@@ -32,6 +32,9 @@ string getNodeName(ast_node * astnode)
 {
     string nodeName;
 
+    // Debug output for node types
+    // printf("Current node type: %d\n", static_cast<int>(astnode->node_type));
+
     switch (astnode->node_type) {
         case ast_operator_type::AST_OP_LEAF_LITERAL_UINT:
             nodeName = to_string((int32_t) astnode->integer_val);
@@ -72,6 +75,18 @@ string getNodeName(ast_node * astnode)
         case ast_operator_type::AST_OP_SUB:
             nodeName = "-";
             break;
+        case ast_operator_type::AST_OP_MUL:
+            nodeName = "*";
+            break;
+        case ast_operator_type::AST_OP_DIV:
+            nodeName = "/";
+            break;
+        case ast_operator_type::AST_OP_MOD:
+            nodeName = "%";
+            break;
+        case ast_operator_type::AST_OP_NEG:
+            nodeName = "-";
+            break;
         case ast_operator_type::AST_OP_ASSIGN:
             nodeName = "=";
             break;
@@ -84,7 +99,7 @@ string getNodeName(ast_node * astnode)
             // TODO 这里追加其它类型的结点，返回对应结点的字符串
 
         default:
-            nodeName = "unknown";
+            nodeName = "unknown(" + to_string(static_cast<int>(astnode->node_type)) + ")";
             break;
     }
 
@@ -100,14 +115,20 @@ Agnode_t * graph_visit_ast_node(Agraph_t *, ast_node *);
 /// @return 创建的图形节点
 Agnode_t * genLeafGraphNode(Agraph_t * g, ast_node * astnode)
 {
+    if (!g || !astnode) {
+        return nullptr;
+    }
+
     // 新建结点，不指定名字
-    // 第二个参数不指定名字则采用匿名，自动创建一个唯一的名字
-    // 第三个参数若为1则g中没有找到则创建；若为0，则在g中根据第二个参数查找，找到返回有效值，否则返回NULL
     Agnode_t * node = agnode(g, (char *) nullptr, 1);
     if (node != nullptr) {
-
         // 获取叶子结点对应的名字
-        string nodeName = getNodeName(astnode);
+        string nodeName;
+        try {
+            nodeName = getNodeName(astnode);
+        } catch (...) {
+            nodeName = "invalid_node";
+        }
 
         // 设置文本的颜色与字体
         agsafeset(node, (char *) "fontcolor", (char *) "black", (char *) "");
@@ -189,9 +210,12 @@ Agnode_t * genInternalGraphNode(Agraph_t * g, ast_node * astnode)
 Agnode_t * graph_visit_ast_node(Agraph_t * g, ast_node * astnode)
 {
     // 非法节点
-    if (nullptr == astnode) {
+    if (nullptr == astnode || nullptr == g) {
         return nullptr;
     }
+
+    // 调试输出当前节点信息
+    //printf("Visiting node: %p, type: %d\n", astnode, static_cast<int>(astnode->node_type));
 
     Agnode_t * graph_node;
 

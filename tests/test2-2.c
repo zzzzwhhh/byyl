@@ -1,19 +1,12 @@
 int main()
 {
-    int a, b;
-    a = 2;
-    b = 3;
+    int a;
+    int b;
 
-    {
-        putint(a + 2 + b + 1);
+    a = -3;
+    b = - - -a;
 
-        int c;
-        c = 5;
-        b = c + 1;
+    putint(b);
 
-        putint(a+b);
-	}
-
-
-	return a + b;
+    return 0;
 }

@@ -1,22 +1,17 @@
 int main()
 {
-	int a, c;
+    int a, c;
     int b;
-    a = 3;
-    b = 2;
+    a = -3;
+    b = 04;
+    c = 0XF;
+	
     {
-        int c;
-        c = a + b;
-        b = c;
-	}
+        int c, d;
+        c = a * b;
+        b = c / a;
+        d = a % b;
+    }
 
-	{
-        int a, b;
-        a = 4;
-        b = 5;
-        c = a + b;
-
-	}
-
-	return a + b + c;
+    return a + b + c;
 }

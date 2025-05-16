@@ -44,9 +44,13 @@ IRGenerator::IRGenerator(ast_node * _root, Module * _module) : root(_root), modu
     ast2ir_handlers[ast_operator_type::AST_OP_LEAF_VAR_ID] = &IRGenerator::ir_leaf_node_var_id;
     ast2ir_handlers[ast_operator_type::AST_OP_LEAF_TYPE] = &IRGenerator::ir_leaf_node_type;
 
-    /* 表达式运算， 加减 */
+    /* 表达式运算 */
     ast2ir_handlers[ast_operator_type::AST_OP_SUB] = &IRGenerator::ir_sub;
     ast2ir_handlers[ast_operator_type::AST_OP_ADD] = &IRGenerator::ir_add;
+    ast2ir_handlers[ast_operator_type::AST_OP_NEG] = &IRGenerator::ir_neg;
+    ast2ir_handlers[ast_operator_type::AST_OP_MUL] = &IRGenerator::ir_mul;
+    ast2ir_handlers[ast_operator_type::AST_OP_DIV] = &IRGenerator::ir_div;
+    ast2ir_handlers[ast_operator_type::AST_OP_MOD] = &IRGenerator::ir_mod;
 
     /* 语句 */
     ast2ir_handlers[ast_operator_type::AST_OP_ASSIGN] = &IRGenerator::ir_assign;
@@ -411,6 +415,105 @@ bool IRGenerator::ir_add(ast_node * node)
     return true;
 }
 
+/// @brief 整数乘法AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_mul(ast_node * node)
+{
+    ast_node * src1_node = node->sons[0];
+    ast_node * src2_node = node->sons[1];
+
+    ast_node * left = ir_visit_ast_node(src1_node);
+    if (!left) {
+        return false;
+    }
+
+    ast_node * right = ir_visit_ast_node(src2_node);
+    if (!right) {
+        return false;
+    }
+
+    BinaryInstruction * mulInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                    IRInstOperator::IRINST_OP_MUL_I,
+                                                    left->val,
+                                                    right->val,
+                                                    IntegerType::getTypeInt());
+
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(mulInst);
+
+    node->val = mulInst;
+
+    return true;
+}
+
+/// @brief 整数除法AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_div(ast_node * node)
+{
+    ast_node * src1_node = node->sons[0];
+    ast_node * src2_node = node->sons[1];
+
+    ast_node * left = ir_visit_ast_node(src1_node);
+    if (!left) {
+        return false;
+    }
+
+    ast_node * right = ir_visit_ast_node(src2_node);
+    if (!right) {
+        return false;
+    }
+
+    BinaryInstruction * divInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                    IRInstOperator::IRINST_OP_DIV_I,
+                                                    left->val,
+                                                    right->val,
+                                                    IntegerType::getTypeInt());
+
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(divInst);
+
+    node->val = divInst;
+
+    return true;
+}
+
+/// @brief 整数求余AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_mod(ast_node * node)
+{
+    ast_node * src1_node = node->sons[0];
+    ast_node * src2_node = node->sons[1];
+
+    ast_node * left = ir_visit_ast_node(src1_node);
+    if (!left) {
+        return false;
+    }
+
+    ast_node * right = ir_visit_ast_node(src2_node);
+    if (!right) {
+        return false;
+    }
+
+    BinaryInstruction * modInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                    IRInstOperator::IRINST_OP_MOD_I,
+                                                    left->val,
+                                                    right->val,
+                                                    IntegerType::getTypeInt());
+
+    node->blockInsts.addInst(left->blockInsts);
+    node->blockInsts.addInst(right->blockInsts);
+    node->blockInsts.addInst(modInst);
+
+    node->val = modInst;
+
+    return true;
+}
+
 /// @brief 整数减法AST节点翻译成线性中间IR
 /// @param node AST节点
 /// @return 翻译是否成功，true：成功，false：失败
@@ -597,6 +700,35 @@ bool IRGenerator::ir_declare_statment(ast_node * node)
     }
 
     return result;
+}
+
+/// @brief 一元负号AST节点翻译成线性中间IR
+/// @param node AST节点
+/// @return 翻译是否成功，true：成功，false：失败
+bool IRGenerator::ir_neg(ast_node * node)
+{
+    ast_node * src_node = node->sons[0];
+
+    // 处理操作数
+    ast_node * operand = ir_visit_ast_node(src_node);
+    if (!operand) {
+        return false;
+    }
+
+    // 生成负号指令
+    BinaryInstruction * negInst = new BinaryInstruction(module->getCurrentFunction(),
+                                                    IRInstOperator::IRINST_OP_NEG,
+                                                    operand->val,
+                                                    IntegerType::getTypeInt());
+
+    // 添加指令到当前节点
+    node->blockInsts.addInst(operand->blockInsts);
+    node->blockInsts.addInst(negInst);
+
+    // 保存结果值
+    node->val = negInst;
+
+    return true;
 }
 
 /// @brief 变量定声明节点翻译成线性中间IR
