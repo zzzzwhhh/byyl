@@ -58,6 +58,15 @@ enum class IRInstOperator : std::int8_t {
     IRINST_OP_GE,
     IRINST_OP_LE,
 
+    /// @brief 逻辑与运算符
+    IRINST_OP_LOGICAL_AND,
+
+    /// @brief 逻辑或运算符
+    IRINST_OP_LOGICAL_OR,
+
+    /// @brief 逻辑非运算符
+    IRINST_OP_LOGICAL_NOT,
+
     /// @brief 条件分支指令
     IRINST_OP_BRANCH,
 
@@ -70,7 +79,8 @@ enum class IRInstOperator : std::int8_t {
     /// @brief 实参ARG指令，单目运算
     IRINST_OP_ARG,
 
-    /* 后续可追加其他的IR指令 */
+    /// @brief 返回指令
+    IRINST_OP_RETURN,
 
     /// @brief 最大指令码，也是无效指令
     IRINST_OP_MAX

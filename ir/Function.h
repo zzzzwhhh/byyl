@@ -51,6 +51,13 @@ public:
     /// @return 形参列表
     std::vector<FormalParam *> & getParams();
 
+    /// @brief 添加形参到函数
+    /// @param param 形参变量
+    void addParam(LocalVariable * param)
+    {
+        params.push_back(new FormalParam(param));
+    }
+
     /// @brief 获取函数内的IR指令代码
     /// @return IR指令代码
     InterCode & getInterCode();
@@ -170,6 +177,36 @@ public:
     ///
     void realArgCountReset();
 
+    /// @brief 设置基址寄存器
+    /// @param reg 基址寄存器编号
+    void setStackBaseReg(int32_t reg)
+    {
+        stackBaseRegs.push_back(reg);
+    }
+
+    /// @brief 获取基址寄存器
+    /// @return 基址寄存器编号
+    int32_t getStackBaseReg(int index) const
+    {
+        if (index < stackBaseRegs.size()) {
+            return stackBaseRegs[index];
+        }
+        return -1;
+    }
+
+    /// @brief 获取所有基址寄存器
+    /// @return 基址寄存器列表
+    const std::vector<int32_t> & getStackBaseRegs() const
+    {
+        return stackBaseRegs;
+    }
+
+    /// @brief 创建函数参数变量，但不加入局部变量列表
+    /// @param type 类型
+    /// @param name 名字
+    /// @return 函数参数变量
+    Value * newFuncParamValue(Type * type, const std::string & name);
+
 private:
     ///
     /// @brief 函数的返回值类型，有点冗余，可删除，直接从type中取得即可
@@ -250,4 +287,9 @@ private:
     /// @brief 累计的实参个数，用于ARG指令的统计
     ///
     int32_t realArgCount = 0;
+
+    ///
+    /// @brief 用于访问栈变量的基址寄存器
+    ///
+    std::vector<int32_t> stackBaseRegs;
 };

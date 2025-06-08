@@ -237,4 +237,18 @@ protected:
     /// @return std::any AST的节点
     ///
     virtual std::any visitNotExp(MiniCParser::NotExpContext * ctx) override;
+
+    ///
+    /// @brief 非终结符FormalParamList的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    virtual std::any visitFormalParamList(MiniCParser::FormalParamListContext * ctx) override;
+
+    ///
+    /// @brief 非终结符FormalParam的分析
+    /// @param ctx CST上下文
+    /// @return std::any AST的节点
+    ///
+    virtual std::any visitFormalParam(MiniCParser::FormalParamContext * ctx) override;
 };

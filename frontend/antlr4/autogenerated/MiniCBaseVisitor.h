@@ -23,6 +23,14 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitFormalParamList(MiniCParser::FormalParamListContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitFormalParam(MiniCParser::FormalParamContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitBlock(MiniCParser::BlockContext *ctx) override {
     return visitChildren(ctx);
   }

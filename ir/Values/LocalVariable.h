@@ -33,6 +33,7 @@ private:
     /// @param _name 名称
     /// @param _scope_level 作用域层级
     ///
+public:
     explicit LocalVariable(Type * _type, std::string _name, int32_t _scope_level)
         : Value(_type), scope_level(_scope_level)
     {

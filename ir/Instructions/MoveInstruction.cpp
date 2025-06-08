@@ -36,8 +36,13 @@ MoveInstruction::MoveInstruction(Function * _func, Value * _result, Value * _src
 /// @param str 转换后的字符串
 void MoveInstruction::toString(std::string & str)
 {
+    Value *dstVal = getOperand(0);
+    Value *srcVal = getOperand(1);
 
-    Value *dstVal = getOperand(0), *srcVal = getOperand(1);
+    if (!dstVal || !srcVal) {
+        str = "invalid move operands";
+        return;
+    }
 
     str = dstVal->getIRName() + " = " + srcVal->getIRName();
 }

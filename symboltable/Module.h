@@ -116,6 +116,12 @@ public:
     /// @param type 变量类型
     Value * newVarValue(Type * type, std::string name = "");
 
+    /// @brief 创建一个函数参数值对象，但不将其加入符号表
+    /// @param type 参数类型
+    /// @param name 参数名称
+    /// @return 参数值对象
+    Value * newParamValue(Type * type, const std::string & name);
+
     /// @brief 查找变量（全局变量或局部变量），会根据作用域栈进行逐级查找。
     /// ! 该函数只有在AST遍历生成线性IR中使用，其它地方不能使用
     /// @param name 变量ID

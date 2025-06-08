@@ -332,3 +332,21 @@ void Module::outputIR(const std::string & filePath)
 
     fclose(fp);
 }
+
+/// @brief 创建一个函数参数值对象，但不将其加入符号表
+/// @param type 参数类型
+/// @param name 参数名称
+/// @return 参数值对象
+Value * Module::newParamValue(Type * type, const std::string & name)
+{
+    if (currentFunc) {
+        // 创建临时变量，但不添加到作用域栈
+        Value * tempValue = new Value(type);
+        // 我们需要手动设置IR名称，因为没有加入符号表
+        tempValue->setIRName("%" + name);
+        return tempValue;
+    } else {
+        minic_log(LOG_ERROR, "在函数外部创建函数参数");
+        return nullptr;
+    }
+}

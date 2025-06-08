@@ -225,6 +225,8 @@ bool IRGenerator::ir_function_define(ast_node * node)
         // TODO 自行追加语义错误处理
         return false;
     }
+
+    // 在函数开始处添加形参赋值指令
     node->blockInsts.addInst(param_node->blockInsts);
 
     // 新建一个Value，用于保存函数的返回值，如果没有返回值可不用申请
@@ -275,12 +277,38 @@ bool IRGenerator::ir_function_define(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_function_formal_params(ast_node * node)
 {
-    // TODO 目前形参还不支持，直接返回true
+    Function * currentFunc = module->getCurrentFunction();
+    if (!currentFunc) {
+        return false;
+    }
 
-    // 每个形参变量都创建对应的临时变量，用于表达实参转递的值
-    // 而真实的形参则创建函数内的局部变量。
-    // 然后产生赋值指令，用于把表达实参值的临时变量拷贝到形参局部变量上。
-    // 请注意这些指令要放在Entry指令后面，因此处理的先后上要注意。
+    // 遍历每个形参
+    for (size_t i = 0; i < node->sons.size(); i++) {
+        auto param = node->sons[i];
+        // 获取形参类型和名称
+        ast_node * typeNode = param->sons[0];
+        ast_node * idNode = param->sons[1];
+
+        // 创建形参局部变量
+        LocalVariable * paramVar = static_cast<LocalVariable *>(module->newVarValue(typeNode->type, idNode->name));
+        if (!paramVar) {
+            return false;
+        }
+
+        // 将形参添加到函数参数列表
+        currentFunc->addParam(paramVar);
+
+        // 创建函数参数t0，但不将其加入符号表
+        std::string paramName = "t" + std::to_string(i);
+        Value * funcParam = module->newParamValue(typeNode->type, paramName);
+
+        // 创建形参赋值指令: %l1 = %t0
+        MoveInstruction * moveInst = new MoveInstruction(currentFunc, paramVar, funcParam);
+        node->blockInsts.addInst(moveInst);
+
+        // 记录形参变量
+        param->val = paramVar;
+    }
 
     return true;
 }
@@ -328,9 +356,17 @@ bool IRGenerator::ir_function_call(ast_node * node)
 
         // 遍历参数列表，孩子是表达式
         // 这里自左往右计算表达式
-        for (auto son: paramsNode->sons) {
+        if (paramsNode->sons.size() != calledFunction->getParams().size()) {
+            minic_log(LOG_ERROR,
+                      "第%lld行的函数%s调用参数数量不匹配(需要%zu个,实际%zu个)",
+                      (long long) lineno,
+                      funcName.c_str(),
+                      calledFunction->getParams().size(),
+                      paramsNode->sons.size());
+            return false;
+        }
 
-            // 遍历Block的每个语句，进行显示或者运算
+        for (auto son: paramsNode->sons) {
             ast_node * temp = ir_visit_ast_node(son);
             if (!temp) {
                 return false;
@@ -357,13 +393,23 @@ bool IRGenerator::ir_function_call(ast_node * node)
         return false;
     }
 
-    // 根据是否有参数选择不同的构造函数
+    // 修正函数调用创建逻辑
     FuncCallInstruction * funcCallInst;
+    if (realParams.size() != calledFunction->getParams().size()) {
+        // 再次验证参数数量匹配
+        minic_log(LOG_ERROR,
+                  "函数%s参数数量不匹配(需要%zu个,实际%zu个)",
+                  funcName.c_str(),
+                  calledFunction->getParams().size(),
+                  realParams.size());
+        return false;
+    }
+
+    // 根据是否有参数选择不同的构造函数
     if (calledFunction->getParams().empty()) {
-        // 确保无参函数调用时realParams为空
-        realParams.clear();
         funcCallInst = new FuncCallInstruction(currentFunc, calledFunction, type);
     } else {
+        // 确保realParams非空且数量正确
         funcCallInst = new FuncCallInstruction(currentFunc, calledFunction, realParams, type);
     }
 
@@ -727,6 +773,7 @@ bool IRGenerator::ir_declare_statment(ast_node * node)
 
         // 遍历每个变量声明
         result = ir_variable_declare(child);
+        node->blockInsts.addInst(child->blockInsts);
         if (!result) {
             break;
         }
@@ -1133,28 +1180,30 @@ bool IRGenerator::ir_break(ast_node * node)
 /// @return 翻译是否成功，true：成功，false：失败
 bool IRGenerator::ir_variable_declare(ast_node * node)
 {
-    // 先处理变量声明
-    // 共有两个或三个孩子，第一个是类型，第二个是变量名
-    node->val = module->newVarValue(node->sons[0]->type, node->sons[1]->name);
+    // 获取当前函数
+    Function * currentFunc = module->getCurrentFunction();
 
-    // 如果有初始化值(第三个孩子)，则处理初始化
+    // 先创建变量的Value(对应类型节点sons[0]和变量名节点sons[1])
+    Value * varValue = module->newVarValue(node->sons[0]->type, node->sons[1]->name);
+    node->val = varValue;
+
+    // 如果存在初始化值(第三个孩子),先访问初始化值节点
     if (node->sons.size() == 3) {
-        // 处理初始化表达式
         ast_node * initValue = ir_visit_ast_node(node->sons[2]);
         if (!initValue) {
             minic_log(LOG_ERROR, "变量(%s)初始化值无效", node->sons[1]->name.c_str());
             return false;
         }
 
-        // 先加入初始化表达式的指令
+        // 处理初始化值的指令
         node->blockInsts.addInst(initValue->blockInsts);
 
-        // 类似赋值语句，使用MOVE指令将初始值赋给变量
-        MoveInstruction * movInst = new MoveInstruction(module->getCurrentFunction(),
-                                                        node->val,     // 目标操作数(刚声明的变量)
-                                                        initValue->val // 源操作数(初始值)
+        // 生成变量赋值IR
+        MoveInstruction * moveInst = new MoveInstruction(currentFunc,
+                                                         varValue,      // 声明的变量作为赋值目标
+                                                         initValue->val // 初始化表达式的值作为源操作数
         );
-        node->blockInsts.addInst(movInst);
+        node->blockInsts.addInst(moveInst);
     }
 
     return true;

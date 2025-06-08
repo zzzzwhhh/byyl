@@ -125,3 +125,23 @@ public:
     ///
     virtual void setLoadRegId(int32_t regId);
 };
+
+// FuncParam类 - 专门用于表示函数参数而不需要添加到符号表
+class FuncParam : public Value {
+private:
+    std::string paramName;
+
+public:
+    FuncParam(Type * _type, const std::string & _name) : Value(_type), paramName(_name)
+    {}
+
+    virtual std::string getName() const override
+    {
+        return paramName;
+    }
+
+    virtual std::string getIRName() const override
+    {
+        return "%" + paramName;
+    }
+};

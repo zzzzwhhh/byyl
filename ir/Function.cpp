@@ -262,6 +262,16 @@ MemVariable * Function::newMemVariable(Type * type)
     return memValue;
 }
 
+/// @brief 创建函数参数变量，但不加入局部变量列表
+/// @param type 类型
+/// @param name 名字
+/// @return 函数参数变量
+Value * Function::newFuncParamValue(Type * type, const std::string & name)
+{
+    // 创建一个函数参数对象
+    return new FuncParam(type, name);
+}
+
 /// @brief 清理函数内申请的资源
 void Function::Delete()
 {

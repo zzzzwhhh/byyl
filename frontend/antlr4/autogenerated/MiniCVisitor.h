@@ -23,6 +23,10 @@ public:
 
     virtual std::any visitFuncDef(MiniCParser::FuncDefContext *context) = 0;
 
+    virtual std::any visitFormalParamList(MiniCParser::FormalParamListContext *context) = 0;
+
+    virtual std::any visitFormalParam(MiniCParser::FormalParamContext *context) = 0;
+
     virtual std::any visitBlock(MiniCParser::BlockContext *context) = 0;
 
     virtual std::any visitBlockItemList(MiniCParser::BlockItemListContext *context) = 0;
